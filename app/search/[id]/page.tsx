@@ -1,7 +1,7 @@
-import { notFound, redirect } from 'next/navigation'
 import { Chat } from '@/components/chat'
 import { getChat } from '@/lib/actions/chat'
 import { convertToUIMessages } from '@/lib/utils'
+import { notFound, redirect } from 'next/navigation'
 
 export const maxDuration = 60
 

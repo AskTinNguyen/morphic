@@ -7,6 +7,64 @@ export const maxDuration = 30
 
 const DEFAULT_MODEL = 'openai:gpt-4o-mini'
 
+interface StreamData {
+  type: string
+  value?: string
+  annotations?: any[]
+  [key: string]: any
+}
+
+// Add this function to handle chart data in the message
+function processChartData(message: string | { content: string }): { content: string; chartData?: any } {
+  try {
+    // Handle both string and object with content property
+    const messageStr = typeof message === 'string' ? message : message.content
+
+    if (!messageStr) {
+      console.warn('Empty message in processChartData')
+      return { content: '' }
+    }
+
+    // Check if the message contains chart data markers
+    const chartMatch = messageStr.match(/```chart\n([\s\S]*?)\n```/)
+    if (!chartMatch) {
+      return { content: messageStr }
+    }
+
+    // Extract and parse the chart data
+    const rawData = JSON.parse(chartMatch[1])
+    
+    // Transform the data into Chart.js format
+    const chartData = {
+      type: 'chart',
+      data: {
+        type: rawData.type || 'line',
+        title: rawData.title,
+        // The actual Chart.js data structure
+        chartData: {
+          labels: rawData.data.map((item: any) => item.month),
+          datasets: rawData.datasets.map((dataset: any) => ({
+            label: dataset.label,
+            data: dataset.data,
+            borderColor: dataset.borderColor || '#4CAF50',
+            backgroundColor: dataset.backgroundColor || 'rgba(76, 175, 80, 0.1)',
+            borderWidth: 1,
+            tension: 0.1
+          }))
+        }
+      }
+    }
+
+    // Remove the chart data from the message
+    const content = messageStr.replace(/```chart\n[\s\S]*?\n```/, '').trim()
+
+    return { content, chartData }
+  } catch (error) {
+    console.error('Error processing chart data:', error)
+    return { content: typeof message === 'string' ? message : message?.content || '' }
+  }
+}
+
 export async function POST(req: Request) {
   try {
     const { messages, id: chatId } = await req.json()
@@ -34,27 +92,124 @@ export async function POST(req: Request) {
 
     const supportsToolCalling = isToolCallSupported(model)
 
-    return supportsToolCalling
-      ? createToolCallingStreamResponse({
+    const streamResponse = supportsToolCalling
+      ? await createToolCallingStreamResponse({
           messages,
           model,
           chatId,
           searchMode
         })
-      : createManualToolStreamResponse({
+      : await createManualToolStreamResponse({
           messages,
           model,
           chatId,
           searchMode
         })
+
+    // Create a TextDecoder for handling chunks
+    const decoder = new TextDecoder()
+    let buffer = ''
+    let completeMessage = ''
+    let lastData: StreamData | null = null
+
+    // Create a TransformStream to process the response
+    const transformStream = new TransformStream({
+      transform(chunk, controller) {
+        try {
+          // Decode the chunk and add it to the buffer
+          buffer += decoder.decode(chunk, { stream: true })
+          
+          // Process complete lines
+          const lines = buffer.split('\n')
+          buffer = lines.pop() || '' // Keep the last incomplete line in the buffer
+          
+          for (const line of lines) {
+            if (line.trim()) {
+              try {
+                // Handle SSE format - lines should start with "data: "
+                const dataMatch = line.match(/^data: (.+)$/)
+                if (!dataMatch) {
+                  // Not a data line, pass through
+                  controller.enqueue(new TextEncoder().encode(line + '\n'))
+                  continue
+                }
+
+                const data = JSON.parse(dataMatch[1])
+                if (data.type === 'text' && data.value) {
+                  // Accumulate the complete message
+                  completeMessage = data.value
+                  lastData = data
+                }
+                // Pass through all messages during streaming
+                controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify(data)}\n\n`))
+              } catch (parseError) {
+                console.error('Error parsing line:', parseError, 'Line:', line)
+                controller.enqueue(new TextEncoder().encode(line + '\n'))
+              }
+            }
+          }
+        } catch (error) {
+          console.error('Error transforming chunk:', error)
+          controller.enqueue(chunk)
+        }
+      },
+      flush(controller) {
+        // Process any remaining data in the buffer
+        if (buffer.trim()) {
+          try {
+            const dataMatch = buffer.match(/^data: (.+)$/)
+            if (dataMatch) {
+              const data = JSON.parse(dataMatch[1])
+              if (data.type === 'text' && data.value) {
+                completeMessage = data.value
+                lastData = data
+              }
+              controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify(data)}\n\n`))
+            } else {
+              controller.enqueue(new TextEncoder().encode(buffer))
+            }
+          } catch (error) {
+            console.error('Error processing remaining buffer:', error)
+            controller.enqueue(new TextEncoder().encode(buffer))
+          }
+        }
+
+        // Process chart data only after the entire message is complete
+        if (completeMessage) {
+          const { content, chartData } = processChartData({ content: completeMessage })
+          if (chartData) {
+            // Preserve existing annotations and add chart data
+            const finalData = {
+              ...lastData,
+              value: content,
+              annotations: [...(lastData?.annotations || []), chartData]
+            }
+            controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify(finalData)}\n\n`))
+          }
+        }
+      }
+    })
+
+    // Get the response body as a ReadableStream
+    const responseBody = streamResponse.body
+    if (!responseBody) {
+      throw new Error('Response body is null')
+    }
+
+    // Create a new response with the transformed stream
+    return new Response(responseBody.pipeThrough(transformStream), {
+      headers: {
+        ...streamResponse.headers,
+        'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-cache',
+        'Connection': 'keep-alive'
+      }
+    })
   } catch (error) {
     console.error('API route error:', error)
     return new Response(
       JSON.stringify({
-        error:
-          error instanceof Error
-            ? error.message
-            : 'An unexpected error occurred',
+        error: error instanceof Error ? error.message : 'An unexpected error occurred',
         status: 500
       }),
       {

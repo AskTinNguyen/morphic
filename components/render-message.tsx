@@ -1,6 +1,8 @@
+import type { ChartMessage as ChartMessageType } from '@/lib/types/chart'
 import { JSONValue, Message, ToolInvocation } from 'ai'
 import { useMemo } from 'react'
 import { AnswerSection } from './answer-section'
+import { ChartMessage } from './chart-message'
 import { ReasoningAnswerSection } from './reasoning-answer-section'
 import RelatedQuestions from './related-questions'
 import { ToolSection } from './tool-section'
@@ -30,6 +32,13 @@ export function RenderMessage({
       ),
     [message.annotations]
   )
+
+  const chartMessage = useMemo(() => {
+    const chartAnnotation = message.annotations?.find(
+      annotation => (annotation as any)?.type === 'chart'
+    )
+    return chartAnnotation as ChartMessageType | undefined
+  }, [message.annotations])
 
   // render for manual tool call
   const toolData = useMemo(() => {
@@ -95,6 +104,7 @@ export function RenderMessage({
           onOpenChange={open => onOpenChange(tool.toolCallId, open)}
         />
       ))}
+      {chartMessage && <ChartMessage message={chartMessage} />}
       {message.reasoning ? (
         <ReasoningAnswerSection
           content={{
