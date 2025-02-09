@@ -1,7 +1,7 @@
 'use client'
 
 import * as Tabs from '@radix-ui/react-tabs'
-import { ChevronLeft, ChevronRight, Trash2 } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Layers, Trash2 } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
 import { useDeepResearch } from './deep-research-provider'
 
@@ -145,9 +145,6 @@ export function DeepResearchVisualization({
               <Trash2 className="h-3 w-3" />
               Clear All
             </button>
-            <div className="text-sm text-muted-foreground">
-              Depth: {currentDepth}/{maxDepth}
-            </div>
           </div>
 
           {/* Progress Indicator */}
@@ -166,13 +163,13 @@ export function DeepResearchVisualization({
             <Tabs.List className="flex w-full border-b mb-2">
               <Tabs.Trigger
                 value="activity"
-                className="flex-1 px-4 py-2 text-sm font-medium text-gray-600 hover:text-gray-900 border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:text-gray-900"
+                className="flex-1 px-4 py-2 text-sm font-medium text-gray-600 hover:text-gray-100 border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:text-white-900"
               >
                 Activity
               </Tabs.Trigger>
               <Tabs.Trigger
                 value="sources"
-                className="flex-1 px-4 py-2 text-sm font-medium text-gray-600 hover:text-gray-900 border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:text-gray-900"
+                className="flex-1 px-4 py-2 text-sm font-medium text-gray-600 hover:text-gray-100 border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:text-white-900"
               >
                 Sources
               </Tabs.Trigger>
@@ -186,19 +183,29 @@ export function DeepResearchVisualization({
                 {[...uniqueActivity].reverse().map((item, index) => (
                   <div
                     key={index}
-                    className="flex items-center gap-3"
+                    className="flex items-start gap-3"
                   >
-                    <div
-                      className={cn(
-                        'size-2 rounded-full shrink-0',
-                        item.status === 'pending' && 'bg-yellow-500',
-                        item.status === 'complete' && 'bg-green-500',
-                        item.status === 'error' && 'bg-red-500',
-                      )}
-                    />
+                    {item.type === 'search' ? (
+                      <div className="flex items-center gap-1 shrink-0 mt-1">
+                        <Layers className="h-3.5 w-3.5 text-primary" />
+                        <span className="text-xs font-medium text-primary">{item.depth}</span>
+                      </div>
+                    ) : (
+                      <div
+                        className={cn(
+                          'size-2 rounded-full shrink-0 mt-1.5',
+                          item.status === 'pending' && 'bg-yellow-500',
+                          item.status === 'complete' && 'bg-green-500',
+                          item.status === 'error' && 'bg-red-500',
+                        )}
+                      />
+                    )}
                     <div className="flex-1 min-w-0">
                       <p className="text-sm text-foreground break-words whitespace-pre-wrap">
-                        {item.message}
+                        {item.type === 'search' 
+                          ? item.message.replace(/^Depth \d+: /, '') // Remove the "Depth X: " prefix
+                          : item.message
+                        }
                       </p>
                       <p className="text-xs text-muted-foreground">
                         {new Date(item.timestamp).toLocaleTimeString()}

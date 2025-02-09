@@ -3,13 +3,16 @@
 import type { ExtendedMessage, SearchResultItem, SearchResults as TypeSearchResults } from '@/lib/types'
 import { extractSearchSources } from '@/lib/utils/search'
 import { ToolInvocation } from 'ai'
+import { Eye, EyeOff } from 'lucide-react'
 import React from 'react'
 import { CollapsibleMessage } from './collapsible-message'
 import { useDeepResearch, useDeepResearchProgress } from './deep-research-provider'
 import { SearchSkeleton } from './default-skeleton'
+import { RankedSearchResults } from './ranked-search-results'
 import { SearchResults } from './search-results'
 import { SearchResultsImageSection } from './search-results-image'
 import { Section, ToolArgsSection } from './section'
+import { Button } from './ui/button'
 
 interface SearchSectionProps {
   tool: ToolInvocation
@@ -33,6 +36,7 @@ export function SearchSection({
   const { shouldContinueResearch, nextDepth, maxDepth } = useDeepResearchProgress(currentDepth, 7, chatId)
   const activityAddedRef = React.useRef<{[key: string]: boolean}>({})
   const sourcesProcessedRef = React.useRef<{[key: string]: boolean}>({})
+  const [showRankedAnalysis, setShowRankedAnalysis] = React.useState(false)
 
   // Tool and search state
   const isToolLoading = tool.state === 'call'
@@ -88,7 +92,8 @@ export function SearchSection({
         relevance: calculateRelevance({
           title: result.title,
           content: result.content
-        }, query)
+        }, query),
+        timestamp: Date.now()
       }))
 
       // Add all sources in one batch operation
@@ -220,9 +225,49 @@ export function SearchSection({
       {isToolLoading ? (
         <SearchSkeleton />
       ) : searchResults && searchResults.results ? (
-        <Section title="Sources">
-          <SearchResults results={searchResults.results} />
-        </Section>
+        <>
+          <Section title="Sources">
+            <SearchResults results={searchResults.results} />
+          </Section>
+          <div className="flex items-center justify-between gap-2 mt-6 mb-4 px-1">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setShowRankedAnalysis(!showRankedAnalysis)}
+              className="text-muted-foreground hover:text-foreground rounded-md h-8"
+            >
+              {showRankedAnalysis ? (
+                <>
+                  <EyeOff className="h-4 w-4 mr-2" />
+                  Hide Analysis
+                </>
+              ) : (
+                <>
+                  <Eye className="h-4 w-4 mr-2" />
+                  Show Analysis
+                </>
+              )}
+            </Button>
+          </div>
+          {showRankedAnalysis && (
+            <RankedSearchResults
+              results={searchResults.results.map(result => ({
+                ...result,
+                metrics: {
+                  relevanceScore: calculateRelevance({ title: result.title, content: result.content }, query),
+                  depthLevel: currentDepth,
+                  contentQuality: result.content ? 
+                    Math.min((result.content.length / 1000) * 0.5 + 0.3, 1) : 0.3,
+                  timeRelevance: 0.7, // Default time relevance since we don't have publish dates
+                  sourceAuthority: 0.6 // Default authority score
+                },
+                timestamp: Date.now()
+              }))}
+              currentDepth={currentDepth}
+              maxDepth={maxDepth}
+            />
+          )}
+        </>
       ) : null}
     </CollapsibleMessage>
   )

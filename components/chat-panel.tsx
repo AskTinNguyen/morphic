@@ -16,6 +16,7 @@ import { ImagePreview } from './chat/ImagePreview'
 import { SearchSourceManager } from './chat/SearchSourceManager'
 import { EmptyScreen } from './empty-screen'
 import { ModelSelector } from './model-selector'
+import { SearchDepthToggle } from './search-depth-toggle'
 import { SearchModeToggle } from './search-mode-toggle'
 import { Button } from './ui/button'
 import { IconLogo } from './ui/icons'
@@ -34,9 +35,10 @@ interface ChatPanelProps {
   query?: string
   stop: () => void
   append: (message: Message) => void
-  //suggestions?: AutocompleteSuggestion[]
-  //sources?: ResearchSource[]
   onSearchModeChange?: (enabled: boolean) => void
+  currentDepth?: number
+  maxDepth?: number
+  onDepthChange?: (depth: number) => void
 }
 
 export function ChatPanel({
@@ -49,9 +51,10 @@ export function ChatPanel({
   query,
   stop,
   append,
-  //suggestions = [],
-  //sources = [],
-  onSearchModeChange
+  onSearchModeChange,
+  currentDepth = 1,
+  maxDepth = 3,
+  onDepthChange
 }: ChatPanelProps) {
   const [showEmptyScreen, setShowEmptyScreen] = useState(false)
   const [searchMode, setSearchMode] = useState(false)
@@ -455,6 +458,12 @@ export function ChatPanel({
                         setSearchMode(enabled)
                         onSearchModeChange?.(enabled)
                     }}
+                />
+                <SearchDepthToggle
+                    enabled={searchMode}
+                    currentDepth={currentDepth}
+                    maxDepth={maxDepth}
+                    onDepthChange={onDepthChange ?? (() => {})}
                 />
             </div>
 

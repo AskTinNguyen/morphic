@@ -120,11 +120,14 @@ a:{"toolCallId":"call-123","result":"tool output"}\n
    - ✅ Implemented proper component hierarchy
    - ✅ Added type safety for session management
 
-### Phase 2: Token Usage Implementation (In Progress)
+### Phase 2: Token Usage Implementation (BLOCKED)
 1. **Token Counting**
    - ✅ Basic token counting implementation
    - ✅ Per-message token tracking
-   - [ ] Support different model token counting strategies
+   - ⚠️ BLOCKED: Model-specific token counting
+     - Issue: Different models return usage data in different formats
+     - Current workaround: Added support for both OpenAI-style (`prompt_tokens`) and Vercel AI SDK style (`promptTokens`)
+     - Need to implement proper model-specific token counting strategies
    - [ ] Add token counting validation
 
 2. **Usage Tracking**
@@ -134,6 +137,10 @@ a:{"toolCallId":"call-123","result":"tool output"}\n
    - ✅ Added basic usage analytics UI
    - ✅ Added usage statistics dialog in header
    - ✅ Protected usage routes with authentication
+   - ⚠️ BLOCKED: Accurate usage tracking
+     - Issue: Some models don't return usage data
+     - Current state: Added extensive logging to debug missing usage data
+     - Need to implement fallback token counting for models that don't provide usage
    - [ ] Implement rate limiting
    - [ ] Add usage quotas
 
@@ -142,42 +149,44 @@ a:{"toolCallId":"call-123","result":"tool output"}\n
    - ✅ Model-specific usage breakdown
    - ✅ Real-time usage updates
    - ✅ Token usage visualization
+   - ⚠️ BLOCKED: Accurate usage summary
+     - Issue: Usage data may be incomplete or missing
+     - Current state: UI shows available data but may not reflect actual usage
    - [ ] Add usage summary generation
    - [ ] Implement detailed analytics
    - [ ] Add usage monitoring
 
 ### Current Implementation Details
 
-1. **Authentication Integration**
-   - ✅ Added NextAuth.js with demo credentials
-   - ✅ Protected usage API routes
-   - ✅ User-specific usage tracking
-   - ✅ Session-based access control
-   - [ ] Add proper user management
+1. **Stream Protocol Implementation**
+   - ✅ Added proper finish message format with usage:
+     ```
+     d:{"finishReason":"stop","usage":{"promptTokens":10,"completionTokens":20}}\n
+     ```
+   - ✅ Implemented usage extraction from different response formats
+   - ⚠️ BLOCKED: Consistent usage data across models
+     - Some models return `prompt_tokens`/`completion_tokens`
+     - Others use `promptTokens`/`completionTokens`
+     - Some nest usage under `response.usage`
+     - Some don't return usage at all
 
-2. **Usage Tracking System**
-   - ✅ Redis-based storage implementation
-   - ✅ Token usage tracking per model
-   - ✅ Usage history tracking
-   - ✅ Basic analytics support
-   - ✅ Per-user data isolation
+2. **Usage Data Extraction**
+   - ✅ Support for OpenAI format
+   - ✅ Support for Vercel AI SDK format
+   - ✅ Support for nested usage data
+   - ✅ Added detailed logging for debugging
+   - ⚠️ BLOCKED: Need to implement:
+     - Model-specific token counting fallbacks
+     - Validation of reported usage data
+     - Handling of missing usage data
 
-3. **UI Components**
-   - ✅ Usage statistics dialog
-   - ✅ Token usage display
-   - ✅ Model-specific breakdowns
-   - ✅ Header integration with auth state
-   - ✅ Responsive usage dialog
-   - [ ] Advanced analytics visualizations
-
-4. **Usage Statistics Features**
-   - ✅ Total token usage display
-   - ✅ Per-model usage breakdown
-   - ✅ Token type segregation (prompt/completion)
-   - ✅ Real-time usage updates
-   - ✅ Clean, accessible UI
-   - [ ] Historical trends
-   - [ ] Cost analysis
+3. **Next Steps for Usage Implementation**
+   - Implement model-specific token counting strategies
+   - Add validation for token counts
+   - Create fallback mechanisms for missing usage data
+   - Improve usage tracking accuracy
+   - Add rate limiting based on token usage
+   - Implement usage quotas and alerts
 
 ### Recent Updates
 
@@ -373,11 +382,14 @@ class ToolManager {
 
 ### Next Steps
 
-#### Phase 2: Token Usage Implementation (In Progress)
+#### Phase 2: Token Usage Implementation (BLOCKED)
 1. **Token Counting**
    - ✅ Basic token counting implementation
    - ✅ Per-message token tracking
-   - [ ] Support different model token counting strategies
+   - ⚠️ BLOCKED: Model-specific token counting
+     - Issue: Different models return usage data in different formats
+     - Current workaround: Added support for both OpenAI-style (`prompt_tokens`) and Vercel AI SDK style (`promptTokens`)
+     - Need to implement proper model-specific token counting strategies
    - [ ] Add token counting validation
 
 2. **Usage Tracking**
@@ -387,6 +399,10 @@ class ToolManager {
    - ✅ Added basic usage analytics UI
    - ✅ Added usage statistics dialog in header
    - ✅ Protected usage routes with authentication
+   - ⚠️ BLOCKED: Accurate usage tracking
+     - Issue: Some models don't return usage data
+     - Current state: Added extensive logging to debug missing usage data
+     - Need to implement fallback token counting for models that don't provide usage
    - [ ] Implement rate limiting
    - [ ] Add usage quotas
 
@@ -395,6 +411,9 @@ class ToolManager {
    - ✅ Model-specific usage breakdown
    - ✅ Real-time usage updates
    - ✅ Token usage visualization
+   - ⚠️ BLOCKED: Accurate usage summary
+     - Issue: Usage data may be incomplete or missing
+     - Current state: UI shows available data but may not reflect actual usage
    - [ ] Add usage summary generation
    - [ ] Implement detailed analytics
    - [ ] Add usage monitoring

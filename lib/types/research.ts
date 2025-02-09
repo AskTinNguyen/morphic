@@ -25,6 +25,29 @@ export interface ChatResearchState {
   sources: ChatResearchSource[]
 }
 
+export interface ResearchDepthConfig {
+  currentDepth: number
+  maxDepth: number
+  minRelevanceScore: number
+  adaptiveThreshold: number
+  depthScores: Record<number, number>
+}
+
+export interface ResearchSourceMetrics {
+  relevanceScore: number
+  depthLevel: number
+  contentQuality: number
+  timeRelevance: number
+  sourceAuthority: number
+}
+
+export interface ResearchDepthRules {
+  minRelevanceForNextDepth: number
+  maxSourcesPerDepth: number
+  depthTimeoutMs: number
+  qualityThreshold: number
+}
+
 // Redis key patterns
 export const REDIS_KEYS = {
   researchState: (chatId: string) => `chat:${chatId}:research:state`,

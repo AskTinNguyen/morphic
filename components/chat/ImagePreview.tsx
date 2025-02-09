@@ -23,7 +23,7 @@ export function ImagePreview({
   return (
     <div
       className={cn(
-        'flex flex-wrap gap-2 p-2 border-t border-input',
+        'flex flex-wrap gap-3 p-4 border-t border-input',
         className
       )}
     >
@@ -38,30 +38,30 @@ export function ImagePreview({
               <Image
                 src={attachment.previewUrl}
                 alt="Preview"
-                className="object-cover"
+                className="object-cover rounded-lg"
                 fill
                 sizes="80px"
               />
             ) : (
-              <div className="flex h-full w-full items-center justify-center bg-muted/50">
+              <div className="flex h-full w-full items-center justify-center bg-muted/50 rounded-lg">
                 <FileText className="size-8 text-muted-foreground" />
               </div>
             )}
 
             {/* Upload progress overlay */}
             {attachment.status === 'uploading' && (
-              <div className="absolute inset-0 flex items-center justify-center bg-background/50 backdrop-blur-sm">
+              <div className="absolute inset-0 flex items-center justify-center bg-background/50 backdrop-blur-sm rounded-lg">
                 <Progress
                   value={attachment.progress}
-                  className="w-12 h-1"
+                  className="w-12 h-1.5 rounded-full"
                 />
               </div>
             )}
 
             {/* Error overlay */}
             {attachment.status === 'error' && (
-              <div className="absolute inset-0 flex items-center justify-center bg-destructive/10">
-                <span className="text-xs text-destructive font-medium px-2 text-center">
+              <div className="absolute inset-0 flex items-center justify-center bg-destructive/10 rounded-lg">
+                <span className="text-xs text-destructive font-medium px-2.5 text-center">
                   {attachment.error}
                 </span>
               </div>
@@ -72,7 +72,7 @@ export function ImagePreview({
           <Button
             variant="ghost"
             size="icon"
-            className="absolute -right-2 -top-2 size-6 rounded-full opacity-0 shadow-sm transition-opacity group-hover:opacity-100"
+            className="absolute -right-2 -top-2 size-6 rounded-full opacity-0 shadow-sm transition-opacity group-hover:opacity-100 bg-background border"
             onClick={() => onRemove(attachment.id)}
           >
             <X className="size-3" />

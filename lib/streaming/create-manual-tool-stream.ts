@@ -74,7 +74,7 @@ export function createManualToolStreamResponse(config: BaseStreamConfig) {
           getMaxAllowedTokens(model)
         )
 
-        const researcherConfig = await manualResearcher({
+        let researcherConfig = await manualResearcher({
           messages: truncatedMessages,
           model,
           isSearchEnabled: searchMode
@@ -96,7 +96,38 @@ export function createManualToolStreamResponse(config: BaseStreamConfig) {
               // Create annotations array with chart data if present
               const annotations: ChatChartMessage[] = chartData ? [chartData] : []
 
-              // Handle stream finish will take care of sending the annotations
+              // Extract usage data safely
+              const responseData = lastStep.response as any
+              let usage = undefined
+              
+              if (responseData?.usage) {
+                // Convert from OpenAI format to our format
+                usage = {
+                  promptTokens: responseData.usage.prompt_tokens || responseData.usage.promptTokens || 0,
+                  completionTokens: responseData.usage.completion_tokens || responseData.usage.completionTokens || 0
+                }
+              } else if (responseData?.response?.usage) {
+                // Some models nest it under response
+                usage = {
+                  promptTokens: responseData.response.usage.prompt_tokens || responseData.response.usage.promptTokens || 0,
+                  completionTokens: responseData.response.usage.completion_tokens || responseData.response.usage.completionTokens || 0
+                }
+              }
+
+              // Only log missing usage for non-Gemini models
+              if (!usage && !model.includes('gemini')) {
+                console.log('No usage data in manual stream response:', {
+                  model,
+                  hasResponse: !!lastStep?.response,
+                  responseKeys: lastStep?.response ? Object.keys(lastStep.response) : [],
+                  usage: responseData?.usage,
+                  nestedUsage: responseData?.response?.usage
+                })
+              } else {
+                console.log('Extracted manual stream usage data:', usage)
+              }
+
+              // Handle stream finish with usage data
               await handleStreamFinish({
                 responseMessages: lastStep.response.messages,
                 originalMessages: messages,
@@ -104,7 +135,8 @@ export function createManualToolStreamResponse(config: BaseStreamConfig) {
                 chatId,
                 dataStream,
                 skipRelatedQuestions: true,
-                annotations
+                annotations,
+                usage
               }).catch(error => {
                 console.error('Error in handleStreamFinish:', error)
                 streamManager.streamError(handleError(error))

@@ -1,6 +1,8 @@
 'use client'
 
-import { createContext, useCallback, useContext, useEffect, useReducer, useState, type ReactNode } from 'react'
+import { ResearchDepthConfig, ResearchSourceMetrics } from '@/lib/types/research'
+import { calculateSourceMetrics, optimizeDepthStrategy, shouldIncreaseDepth } from '@/lib/utils/research-depth'
+import { Children, cloneElement, createContext, isValidElement, useCallback, useContext, useEffect, useReducer, useState, type ReactNode } from 'react'
 
 // Types
 interface ActivityItem {
@@ -15,6 +17,10 @@ interface SourceItem {
   url: string
   title: string
   relevance: number
+  content?: string
+  query?: string
+  publishedDate?: string
+  timestamp: number
 }
 
 interface DeepResearchState {
@@ -25,17 +31,20 @@ interface DeepResearchState {
   maxDepth: number
   completedSteps: number
   totalExpectedSteps: number
+  depthConfig: ResearchDepthConfig
+  sourceMetrics: ResearchSourceMetrics[]
 }
 
 type DeepResearchAction =
   | { type: 'TOGGLE_ACTIVE' }
   | { type: 'SET_ACTIVE'; payload: boolean }
-  | { type: 'ADD_ACTIVITY'; payload: ActivityItem & { completedSteps?: number; totalSteps?: number } }
   | { type: 'ADD_SOURCE'; payload: SourceItem }
   | { type: 'SET_DEPTH'; payload: { current: number; max: number } }
-  | { type: 'INIT_PROGRESS'; payload: { maxDepth: number; totalSteps: number } }
+  | { type: 'ADD_ACTIVITY'; payload: ActivityItem & { completedSteps?: number; totalSteps?: number } }
   | { type: 'UPDATE_PROGRESS'; payload: { completed: number; total: number } }
   | { type: 'CLEAR_STATE' }
+  | { type: 'OPTIMIZE_DEPTH' }
+  | { type: 'INIT_PROGRESS'; payload: { totalSteps: number } }
 
 interface DeepResearchContextType {
   state: DeepResearchState
@@ -57,7 +66,15 @@ const initialState: DeepResearchState = {
   currentDepth: 0,
   maxDepth: 7,
   completedSteps: 0,
-  totalExpectedSteps: 0
+  totalExpectedSteps: 0,
+  depthConfig: {
+    currentDepth: 1,
+    maxDepth: 7,
+    minRelevanceScore: 0.6,
+    adaptiveThreshold: 0.7,
+    depthScores: {}
+  },
+  sourceMetrics: []
 }
 
 function deepResearchReducer(state: DeepResearchState, action: DeepResearchAction): DeepResearchState {
@@ -66,53 +83,70 @@ function deepResearchReducer(state: DeepResearchState, action: DeepResearchActio
       return {
         ...state,
         isActive: !state.isActive,
-        ...(state.isActive && {
-          activity: [],
-          sources: [],
-          currentDepth: 0,
-          completedSteps: 0,
-          totalExpectedSteps: 0
-        })
+        activity: state.isActive 
+          ? state.activity.map(item => 
+              item.status === 'pending' 
+                ? { ...item, status: 'complete' }
+                : item
+            )
+          : state.activity
       }
     case 'SET_ACTIVE':
       return {
         ...state,
         isActive: action.payload,
-        ...(action.payload === false && {
-          activity: [],
-          sources: [],
-          currentDepth: 0,
-          completedSteps: 0,
-          totalExpectedSteps: 0
-        })
+        activity: !action.payload 
+          ? state.activity.map(item => 
+              item.status === 'pending' 
+                ? { ...item, status: 'complete' }
+                : item
+            )
+          : state.activity
       }
+    case 'ADD_SOURCE': {
+      const { url, title, relevance } = action.payload
+      const existingSource = state.sources.find(s => s.url === url)
+      if (existingSource) return state
+
+      const metrics = calculateSourceMetrics(
+        action.payload.content || '',
+        action.payload.query || '',
+        url,
+        action.payload.publishedDate
+      )
+      
+      const newSourceMetrics = [...state.sourceMetrics, { ...metrics, depthLevel: state.depthConfig.currentDepth }]
+      const newDepthConfig = optimizeDepthStrategy(state.depthConfig, newSourceMetrics)
+      
+      return {
+        ...state,
+        sources: [
+          ...state.sources,
+          { url, title, relevance, timestamp: Date.now() }
+        ],
+        sourceMetrics: newSourceMetrics,
+        depthConfig: newDepthConfig
+      }
+    }
+    case 'SET_DEPTH': {
+      const { current, max } = action.payload
+      return {
+        ...state,
+        currentDepth: current,
+        maxDepth: max,
+        depthConfig: {
+          ...state.depthConfig,
+          currentDepth: current,
+          maxDepth: max
+        }
+      }
+    }
     case 'ADD_ACTIVITY':
       return {
         ...state,
         activity: [...state.activity, action.payload],
-        completedSteps:
-          action.payload.completedSteps ??
-          (action.payload.status === 'complete' ? state.completedSteps + 1 : state.completedSteps),
+        completedSteps: action.payload.completedSteps ?? state.completedSteps,
         totalExpectedSteps: action.payload.totalSteps ?? state.totalExpectedSteps
-      }
-    case 'ADD_SOURCE':
-      return {
-        ...state,
-        sources: [...state.sources, action.payload]
-      }
-    case 'SET_DEPTH':
-      return {
-        ...state,
-        currentDepth: action.payload.current,
-        maxDepth: action.payload.max
-      }
-    case 'INIT_PROGRESS':
-      return {
-        ...state,
-        maxDepth: action.payload.maxDepth,
-        totalExpectedSteps: action.payload.totalSteps,
-        completedSteps: 0,
-        currentDepth: 0
       }
     case 'UPDATE_PROGRESS':
       return {
@@ -122,6 +156,32 @@ function deepResearchReducer(state: DeepResearchState, action: DeepResearchActio
       }
     case 'CLEAR_STATE':
       return initialState
+    case 'OPTIMIZE_DEPTH': {
+      if (!shouldIncreaseDepth(state.depthConfig, state.sourceMetrics)) {
+        return state
+      }
+      
+      const newDepth = state.depthConfig.currentDepth + 1
+      return {
+        ...state,
+        depthConfig: {
+          ...state.depthConfig,
+          currentDepth: newDepth,
+          depthScores: {
+            ...state.depthConfig.depthScores,
+            [newDepth]: 0
+          }
+        }
+      }
+    }
+    case 'INIT_PROGRESS':
+      return {
+        ...state,
+        maxDepth: 7,
+        totalExpectedSteps: action.payload.totalSteps,
+        completedSteps: 0,
+        currentDepth: 0
+      }
     default:
       return state
   }
@@ -158,7 +218,7 @@ function DeepResearchProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const initProgress = useCallback((maxDepth: number, totalSteps: number) => {
-    dispatch({ type: 'INIT_PROGRESS', payload: { maxDepth, totalSteps } })
+    dispatch({ type: 'INIT_PROGRESS', payload: { totalSteps } })
   }, [])
 
   const updateProgress = useCallback((completed: number, total: number) => {
@@ -198,18 +258,27 @@ function useDeepResearch() {
 }
 
 // State Manager Component
-function DeepResearchStateManager({ 
-  children, 
-  chatId,
-  onClearStateChange,
-  initialClearedState = false
-}: { 
+interface DeepResearchStateManagerProps {
   children: ReactNode
   chatId: string
   onClearStateChange?: (chatId: string, isCleared: boolean) => Promise<void>
   initialClearedState?: boolean
-}) {
-  const { state, clearState, setActive, initProgress } = useDeepResearch()
+  onDepthChange?: (chatId: string, currentDepth: number, maxDepth: number) => Promise<void>
+}
+
+// Add this interface before DeepResearchStateManager
+interface SetDepthProps {
+  setDepth: (current: number, max: number) => void;
+}
+
+function DeepResearchStateManager({ 
+  children, 
+  chatId,
+  onClearStateChange,
+  initialClearedState = false,
+  onDepthChange
+}: DeepResearchStateManagerProps) {
+  const { state, clearState, setActive, initProgress, setDepth: originalSetDepth } = useDeepResearch()
   const [isCleared, setIsCleared] = useState(false)
   const [hasBeenCleared, setHasBeenCleared] = useState(initialClearedState)
 
@@ -232,6 +301,17 @@ function DeepResearchStateManager({
       }
     }
   }, [getChatClearedKey, onClearStateChange])
+
+  const setDepth = useCallback(async (current: number, max: number) => {
+    originalSetDepth(current, max)
+    if (onDepthChange) {
+      try {
+        await onDepthChange(chatId, current, max)
+      } catch (error) {
+        console.error('Failed to update research depth in database:', error)
+      }
+    }
+  }, [chatId, originalSetDepth, onDepthChange])
   
   const isChatCleared = useCallback((id: string) => {
     if (typeof window === 'undefined') return initialClearedState
@@ -277,7 +357,21 @@ function DeepResearchStateManager({
     }
   }, [clearState, setActive, hasBeenCleared])
 
-  return <>{children}</>
+  return (
+    <>
+      {Children.map(children, (child: ReactNode) => {
+        if (isValidElement(child)) {
+          // Only pass setDepth to custom components (non-DOM elements)
+          if (typeof child.type === 'function') {
+            return cloneElement(child, {
+              setDepth
+            } as SetDepthProps)
+          }
+        }
+        return child
+      })}
+    </>
+  )
 }
 
 // Progress Hook

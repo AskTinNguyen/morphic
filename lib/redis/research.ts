@@ -43,7 +43,8 @@ const REDIS_KEYS = {
 
 export async function updateChatResearchState(
   chatId: string,
-  isCleared: boolean
+  isCleared: boolean,
+  maxDepth?: number
 ): Promise<void> {
   const redis = await getRedisClient()
   const stateKey = REDIS_KEYS.researchState(chatId)
@@ -58,7 +59,7 @@ export async function updateChatResearchState(
       isCleared: true,
       clearedAt: new Date().toISOString(),
       currentDepth: 0,
-      maxDepth: 7,
+      maxDepth: maxDepth ?? 7,
       completedSteps: 0,
       totalExpectedSteps: 0
     })
@@ -72,11 +73,25 @@ export async function updateChatResearchState(
       isCleared: false,
       clearedAt: null,
       currentDepth: 0,
-      maxDepth: 7,
+      maxDepth: maxDepth ?? 7,
       completedSteps: 0,
       totalExpectedSteps: 0
     })
   }
+}
+
+export async function updateResearchDepth(
+  chatId: string,
+  currentDepth: number,
+  maxDepth: number
+): Promise<void> {
+  const redis = await getRedisClient()
+  const stateKey = REDIS_KEYS.researchState(chatId)
+
+  await redis.hmset(stateKey, {
+    currentDepth: currentDepth.toString(),
+    maxDepth: maxDepth.toString()
+  })
 }
 
 export async function getChatResearchState(chatId: string): Promise<ResearchState> {

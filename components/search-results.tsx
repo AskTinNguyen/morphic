@@ -11,6 +11,14 @@ export interface SearchResultsProps {
   results: SearchResultItem[]
 }
 
+// Ensure search parameters are properly initialized
+const DEFAULT_SEARCH_PARAMS = {
+  include_domains: [] as string[],
+  exclude_domains: [] as string[],
+  max_results: 20,
+  search_depth: 'advanced' as const
+}
+
 export function SearchResults({ results }: SearchResultsProps) {
   // State to manage whether to display the results
   const [showAllResults, setShowAllResults] = useState(false)

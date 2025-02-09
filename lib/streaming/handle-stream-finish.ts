@@ -40,6 +40,51 @@ export async function handleStreamFinish({
     // Update usage if provided
     if (usage) {
       streamManager.updateUsage(usage.promptTokens, usage.completionTokens)
+      
+      // Track usage in our system
+      try {
+        const baseUrl = process.env.NEXTAUTH_URL || 'http://localhost:3000'
+        console.log('Tracking usage:', {
+          model,
+          chatId,
+          usage: {
+            promptTokens: usage.promptTokens,
+            completionTokens: usage.completionTokens,
+            totalTokens: usage.promptTokens + usage.completionTokens
+          }
+        })
+        
+        const response = await fetch(`${baseUrl}/api/usage`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            model,
+            chatId,
+            usage: {
+              promptTokens: usage.promptTokens,
+              completionTokens: usage.completionTokens,
+              totalTokens: usage.promptTokens + usage.completionTokens
+            }
+          })
+        })
+
+        if (!response.ok) {
+          const text = await response.text()
+          console.error('Failed to track usage:', {
+            status: response.status,
+            statusText: response.statusText,
+            body: text
+          })
+        }
+      } catch (error) {
+        console.error('Failed to track usage:', error)
+        // Don't throw, just log the error and continue
+      }
+    } else if (!model.includes('gemini')) {
+      // Only log missing usage for non-Gemini models
+      console.log('No usage data provided for tracking')
     }
 
     // Don't convert messages that are already in the correct format

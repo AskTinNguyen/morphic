@@ -54,8 +54,8 @@ export async function executeToolCall(
                 <query>search query text</query>
                 <max_results>number - ${defaultMaxResults} by default</max_results>
                 <search_depth>basic or advanced</search_depth>
-                <include_domains>domain1,domain2</include_domains>
-                <exclude_domains>domain1,domain2</exclude_domains>
+                <include_domains>[]</include_domains>
+                <exclude_domains>[]</exclude_domains>
               </parameters>
             </tool_call>
 
