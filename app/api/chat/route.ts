@@ -1,5 +1,6 @@
 import { createManualToolStreamResponse } from '@/lib/streaming/create-manual-tool-stream'
 import { createToolCallingStreamResponse } from '@/lib/streaming/create-tool-calling-stream'
+import { ChartMessage, isChartData, RawChartData } from '@/lib/types/chart'
 import { isProviderEnabled, isToolCallSupported } from '@/lib/utils/registry'
 import { cookies } from 'next/headers'
 
@@ -15,7 +16,7 @@ interface StreamData {
 }
 
 // Add this function to handle chart data in the message
-function processChartData(message: string | { content: string }): { content: string; chartData?: any } {
+function processChartData(message: string | { content: string }): { content: string; chartData?: ChartMessage } {
   try {
     // Handle both string and object with content property
     const messageStr = typeof message === 'string' ? message : message.content
@@ -32,27 +33,40 @@ function processChartData(message: string | { content: string }): { content: str
     }
 
     // Extract and parse the chart data
-    const rawData = JSON.parse(chartMatch[1])
+    const rawData = JSON.parse(chartMatch[1]) as RawChartData
     
     // Transform the data into Chart.js format
-    const chartData = {
+    const chartData: ChartMessage = {
       type: 'chart',
       data: {
         type: rawData.type || 'line',
         title: rawData.title,
-        // The actual Chart.js data structure
         chartData: {
-          labels: rawData.data.map((item: any) => item.month),
-          datasets: rawData.datasets.map((dataset: any) => ({
-            label: dataset.label,
-            data: dataset.data,
+          // Ensure we have valid labels from the data array
+          labels: Array.isArray(rawData.data) 
+            ? rawData.data.map(item => item.month || '').filter(Boolean)
+            : [],
+          // Transform and validate datasets
+          datasets: Array.isArray(rawData.datasets) 
+            ? rawData.datasets.map(dataset => ({
+                label: dataset.label || 'Dataset',
+                data: Array.isArray(dataset.data) 
+                  ? dataset.data.filter(value => typeof value === 'number')
+                  : [],
             borderColor: dataset.borderColor || '#4CAF50',
             backgroundColor: dataset.backgroundColor || 'rgba(76, 175, 80, 0.1)',
-            borderWidth: 1,
-            tension: 0.1
+                borderWidth: dataset.borderWidth || 1,
+                tension: dataset.tension || 0.1
           }))
+            : []
         }
       }
+    }
+
+    // Validate the transformed data
+    if (!isChartData(chartData.data)) {
+      console.error('Invalid chart data structure:', chartData)
+      return { content: messageStr }
     }
 
     // Remove the chart data from the message
