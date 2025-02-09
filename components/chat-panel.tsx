@@ -4,12 +4,14 @@ import { AttachmentFile } from '@/lib/types'
 import { cn } from '@/lib/utils'
 import { uploadFile, validateFile } from '@/lib/utils/upload'
 import { Message } from 'ai'
-import { ArrowUp, Maximize2, MessageCirclePlus, Square, Upload } from 'lucide-react'
+import { ArrowUp, Maximize2, MessageCirclePlus, Square, Type, Upload } from 'lucide-react'
 import { nanoid } from 'nanoid'
 import { useRouter } from 'next/navigation'
 import { useEffect, useRef, useState } from 'react'
 import { useDropzone } from 'react-dropzone'
+import ReactMarkdown from 'react-markdown'
 import Textarea from 'react-textarea-autosize'
+import remarkGfm from 'remark-gfm'
 import { ImagePreview } from './chat/ImagePreview'
 import { EmptyScreen } from './empty-screen'
 import { ModelSelector } from './model-selector'
@@ -53,6 +55,7 @@ export function ChatPanel({
   const [showEmptyScreen, setShowEmptyScreen] = useState(false)
   const [searchMode, setSearchMode] = useState(false)
   const [isFullSize, setIsFullSize] = useState(false)
+  const [isMarkdownView, setIsMarkdownView] = useState(false)
   const router = useRouter()
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const isFirstRender = useRef(true)
@@ -174,6 +177,12 @@ export function ChatPanel({
     }
   }, [query, append])
 
+  // Update the format text handler
+  const handleFormatText = () => {
+    if (!input) return
+    setIsMarkdownView(!isMarkdownView)
+  }
+
   return (
     <div
       className={cn(
@@ -205,48 +214,87 @@ export function ChatPanel({
               )}
             >
               <input {...getInputProps()} />
-              <Textarea
-                ref={inputRef}
-                name="input"
-                rows={isFullSize ? undefined : 2}
-                maxRows={isFullSize ? undefined : 10}
-                tabIndex={0}
-                onCompositionStart={handleCompositionStart}
-                onCompositionEnd={handleCompositionEnd}
-                placeholder="Ask a question..."
-                spellCheck={false}
-                value={input}
-                className={cn(
-                  "resize-none w-full bg-transparent border-0 px-4 py-3 text-sm",
-                  "placeholder:text-muted-foreground focus-visible:outline-none",
-                  "disabled:cursor-not-allowed disabled:opacity-50",
-                  isDragActive && "opacity-50",
-                  isFullSize ? "min-h-[200px] max-h-[500px] overflow-y-auto" : "min-h-12"
-                )}
-                disabled={isDragActive}
-                onChange={e => {
-                  handleInputChange(e)
-                  setShowEmptyScreen(e.target.value.length === 0)
-                }}
-                onKeyDown={e => {
-                  if (
-                    e.key === 'Enter' &&
-                    !e.shiftKey &&
-                    !isComposing &&
-                    !enterDisabled
-                  ) {
-                    if (input.trim().length === 0) {
+              {isMarkdownView ? (
+                <div 
+                  className={cn(
+                    "w-full min-h-12 bg-transparent px-4 py-3 text-sm prose prose-sm max-w-none dark:prose-invert",
+                    "prose-headings:mt-2 prose-headings:mb-1 prose-headings:text-foreground",
+                    "prose-p:my-1 prose-p:leading-relaxed prose-p:text-muted-foreground",
+                    "prose-pre:my-1 prose-pre:p-2 prose-pre:bg-muted prose-pre:text-foreground",
+                    "prose-code:text-primary prose-code:bg-muted prose-code:p-1 prose-code:rounded",
+                    "prose-strong:text-foreground prose-strong:font-semibold",
+                    "prose-em:text-muted-foreground",
+                    "prose-ul:my-1 prose-ol:my-1 prose-li:text-muted-foreground",
+                    "prose-blockquote:text-muted-foreground prose-blockquote:border-l-primary",
+                    isFullSize ? "min-h-[120px] max-h-[820px] overflow-y-auto" : "min-h-12"
+                  )}
+                  onClick={() => setIsMarkdownView(false)}
+                >
+                  <ReactMarkdown 
+                    remarkPlugins={[remarkGfm]}
+                    components={{
+                      h1: ({node, ...props}) => <h1 className="text-xl font-bold text-foreground" {...props} />,
+                      h2: ({node, ...props}) => <h2 className="text-lg font-semibold text-foreground" {...props} />,
+                      h3: ({node, ...props}) => <h3 className="text-base font-medium text-foreground" {...props} />,
+                      code: ({node, inline, ...props}) => 
+                        inline ? 
+                          <code className="bg-muted text-primary rounded px-1" {...props} /> :
+                          <pre className="bg-muted p-2 rounded"><code className="text-foreground" {...props} /></pre>,
+                      a: ({node, ...props}) => <a className="text-primary hover:underline" {...props} />,
+                      p: ({node, ...props}) => <p className="text-muted-foreground" {...props} />,
+                      ul: ({node, ...props}) => <ul className="text-muted-foreground" {...props} />,
+                      ol: ({node, ...props}) => <ol className="text-muted-foreground" {...props} />,
+                      li: ({node, ...props}) => <li className="text-muted-foreground" {...props} />,
+                      blockquote: ({node, ...props}) => <blockquote className="border-l-2 border-primary pl-4 italic text-muted-foreground" {...props} />,
+                    }}
+                  >
+                    {input}
+                  </ReactMarkdown>
+                </div>
+              ) : (
+                <Textarea
+                  ref={inputRef}
+                  name="input"
+                  rows={isFullSize ? undefined : 2}
+                  maxRows={isFullSize ? undefined : 10}
+                  tabIndex={0}
+                  onCompositionStart={handleCompositionStart}
+                  onCompositionEnd={handleCompositionEnd}
+                  placeholder="Ask a question..."
+                  spellCheck={false}
+                  value={input}
+                  className={cn(
+                    "resize-none w-full bg-transparent border-0 px-4 py-3 text-sm",
+                    "placeholder:text-muted-foreground focus-visible:outline-none",
+                    "disabled:cursor-not-allowed disabled:opacity-50",
+                    isDragActive && "opacity-50",
+                    isFullSize ? "min-h-[200px] max-h-[500px] overflow-y-auto" : "min-h-8"
+                  )}
+                  disabled={isDragActive}
+                  onChange={e => {
+                    handleInputChange(e)
+                    setShowEmptyScreen(e.target.value.length === 0)
+                  }}
+                  onKeyDown={e => {
+                    if (
+                      e.key === 'Enter' &&
+                      !e.shiftKey &&
+                      !isComposing &&
+                      !enterDisabled
+                    ) {
+                      if (input.trim().length === 0) {
+                        e.preventDefault()
+                        return
+                      }
                       e.preventDefault()
-                      return
+                      const textarea = e.target as HTMLTextAreaElement
+                      textarea.form?.requestSubmit()
                     }
-                    e.preventDefault()
-                    const textarea = e.target as HTMLTextAreaElement
-                    textarea.form?.requestSubmit()
-                  }
-                }}
-                onFocus={() => setShowEmptyScreen(true)}
-                onBlur={() => setShowEmptyScreen(false)}
-              />
+                  }}
+                  onFocus={() => setShowEmptyScreen(true)}
+                  onBlur={() => setShowEmptyScreen(false)}
+                />
+              )}
               {isDragActive && (
                 <div className="absolute inset-0 z-50 flex items-center justify-center">
                   <div className="flex items-center gap-2 rounded-lg bg-background px-3 py-2 text-sm font-medium shadow-lg">
@@ -295,6 +343,21 @@ export function ChatPanel({
                         <MessageCirclePlus className="size-4 group-hover:rotate-12 transition-all" />
                     </Button>
                 )}
+
+                {/* Format Text button */}
+                <Button
+                    variant="outline"
+                    size="icon"
+                    onClick={handleFormatText}
+                    className={cn(
+                        "shrink-0 rounded-full group",
+                        "hover:bg-primary/10"
+                    )}
+                    type="button"
+                    disabled={!input || isLoading}
+                >
+                    <Type className="size-4 group-hover:text-primary transition-colors" />
+                </Button>
 
                 {/* Full Size toggle button - Can be moved anywhere within either group */}
                 <Button
