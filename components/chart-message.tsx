@@ -54,27 +54,11 @@ function ChartMessageComponent({ message }: ChartMessageProps) {
                 position: 'left',
                 title: {
                   display: true,
-                  text: 'Temperature (°C)',
-                  color: 'rgb(255, 159, 64)'
+                  text: message.data.datasets[0]?.label || 'Value',
+                  color: message.data.datasets[0]?.borderColor
                 },
                 ticks: {
-                  color: 'rgb(255, 159, 64)'
-                }
-              },
-              y1: {
-                type: 'linear',
-                display: true,
-                position: 'right',
-                title: {
-                  display: true,
-                  text: 'Air Quality Index (AQI)',
-                  color: 'rgb(75, 192, 192)'
-                },
-                ticks: {
-                  color: 'rgb(75, 192, 192)'
-                },
-                grid: {
-                  drawOnChartArea: false // Only show grid lines for left axis
+                  color: message.data.datasets[0]?.borderColor
                 }
               }
             },

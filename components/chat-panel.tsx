@@ -1,6 +1,6 @@
 'use client'
 
-import { AttachmentFile } from '@/lib/types'
+import { AttachmentFile, SearchSource } from '@/lib/types'
 import { cn } from '@/lib/utils'
 import { uploadFile, validateFile } from '@/lib/utils/upload'
 import { Message } from 'ai'
@@ -13,6 +13,7 @@ import ReactMarkdown from 'react-markdown'
 import Textarea from 'react-textarea-autosize'
 import remarkGfm from 'remark-gfm'
 import { ImagePreview } from './chat/ImagePreview'
+import { SearchSourceManager } from './chat/SearchSourceManager'
 import { EmptyScreen } from './empty-screen'
 import { ModelSelector } from './model-selector'
 import { SearchModeToggle } from './search-mode-toggle'
@@ -62,6 +63,9 @@ export function ChatPanel({
   const [isComposing, setIsComposing] = useState(false) // Composition state
   const [enterDisabled, setEnterDisabled] = useState(false) // Disable Enter after composition ends
   const [attachments, setAttachments] = useState<AttachmentFile[]>([])
+  const [isSourcePickerVisible, setIsSourcePickerVisible] = useState(false)
+  const [sourcePickerPosition, setSourcePickerPosition] = useState({ top: 0, left: 0 })
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
 
   const handleCompositionStart = () => setIsComposing(true)
 
@@ -167,7 +171,7 @@ export function ChatPanel({
   }
 
   useEffect(() => {
-    if (isFirstRender.current && query && query.trim().length > 0) {
+    if (isFirstRender.current && query && query.trim().length > 0 && messages.length === 0) {
       append({
         role: 'user',
         content: query,
@@ -175,12 +179,113 @@ export function ChatPanel({
       })
       isFirstRender.current = false
     }
-  }, [query, append])
+  }, [query, append, messages.length])
 
   // Update the format text handler
   const handleFormatText = () => {
     if (!input) return
     setIsMarkdownView(!isMarkdownView)
+  }
+
+  const handleSourceSelect = (source: SearchSource) => {
+    if (!textareaRef.current) return
+
+    const cursorPosition = textareaRef.current.selectionStart
+    const textBefore = input.slice(0, cursorPosition)
+    const textAfter = input.slice(cursorPosition)
+    
+    // Format the source as a markdown link
+    const sourceText = `[${source.title || source.url}](${source.url})`
+    
+    // Replace the @ symbol with the source
+    const lastAtIndex = textBefore.lastIndexOf('@')
+    if (lastAtIndex >= 0) {
+      const newInput = textBefore.slice(0, lastAtIndex) + sourceText + textAfter
+      handleInputChange({
+        target: { value: newInput }
+      } as React.ChangeEvent<HTMLTextAreaElement>)
+
+      // Focus the textarea and set cursor position after the inserted source
+      requestAnimationFrame(() => {
+        if (textareaRef.current) {
+          textareaRef.current.focus()
+          const newCursorPosition = lastAtIndex + sourceText.length
+          textareaRef.current.setSelectionRange(newCursorPosition, newCursorPosition)
+        }
+      })
+    }
+  }
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === '@' && !isSourcePickerVisible) {
+      const textarea = e.currentTarget
+      const { selectionStart } = textarea
+      
+      // Get cursor position
+      const textBeforeCursor = textarea.value.slice(0, selectionStart)
+      const lines = textBeforeCursor.split('\n')
+      const currentLineIndex = lines.length - 1
+      const currentLineLength = lines[currentLineIndex].length
+      
+      // Get textarea position info
+      const { lineHeight, paddingTop, paddingLeft } = getComputedStyle(textarea)
+      const lineHeightValue = parseInt(lineHeight)
+      const paddingTopValue = parseInt(paddingTop)
+      const paddingLeftValue = parseInt(paddingLeft)
+      
+      // Calculate position
+      const caretCoords = getCaretCoordinates(textarea, selectionStart)
+      const top = textarea.offsetTop + paddingTopValue + caretCoords.top + lineHeightValue
+      const left = textarea.offsetLeft + paddingLeftValue + caretCoords.left
+      
+      setSourcePickerPosition({ 
+        top: Math.min(top, textarea.offsetTop + textarea.offsetHeight - 200), // Ensure picker doesn't go below textarea
+        left: Math.min(left, textarea.offsetLeft + textarea.offsetWidth - 384) // 384px is picker width
+      })
+      setIsSourcePickerVisible(true)
+    }
+  }
+
+  // Add getCaretCoordinates helper
+  function getCaretCoordinates(element: HTMLTextAreaElement, position: number) {
+    const { offsetLeft: elementLeft, offsetTop: elementTop } = element
+    const div = document.createElement('div')
+    const styles = getComputedStyle(element)
+    const properties = [
+      'direction', 'boxSizing', 'width', 'height', 'overflowX', 'overflowY',
+      'borderTopWidth', 'borderRightWidth', 'borderBottomWidth', 'borderLeftWidth',
+      'paddingTop', 'paddingRight', 'paddingBottom', 'paddingLeft',
+      'fontStyle', 'fontVariant', 'fontWeight', 'fontStretch', 'fontSize',
+      'fontSizeAdjust', 'lineHeight', 'fontFamily', 'textAlign', 'textTransform',
+      'textIndent', 'textDecoration', 'letterSpacing', 'wordSpacing'
+    ]
+
+    div.style.position = 'absolute'
+    div.style.visibility = 'hidden'
+    div.style.whiteSpace = 'pre-wrap'
+
+    properties.forEach(prop => {
+      div.style[prop as any] = styles.getPropertyValue(prop)
+    })
+
+    document.body.appendChild(div)
+    
+    const text = element.value.slice(0, position)
+    const span = document.createElement('span')
+    span.textContent = text
+    div.appendChild(span)
+    
+    const coordinates = {
+      top: span.offsetTop - element.scrollTop,
+      left: span.offsetLeft - element.scrollLeft
+    }
+    
+    document.body.removeChild(div)
+    return coordinates
+  }
+
+  const handleCloseSourcePicker = () => {
+    setIsSourcePickerVisible(false)
   }
 
   return (
@@ -253,7 +358,7 @@ export function ChatPanel({
                 </div>
               ) : (
                 <Textarea
-                  ref={inputRef}
+                  ref={textareaRef}
                   name="input"
                   rows={isFullSize ? undefined : 2}
                   maxRows={isFullSize ? undefined : 10}
@@ -276,11 +381,13 @@ export function ChatPanel({
                     setShowEmptyScreen(e.target.value.length === 0)
                   }}
                   onKeyDown={e => {
+                    handleKeyDown(e)
                     if (
                       e.key === 'Enter' &&
                       !e.shiftKey &&
                       !isComposing &&
-                      !enterDisabled
+                      !enterDisabled &&
+                      !isSourcePickerVisible
                     ) {
                       if (input.trim().length === 0) {
                         e.preventDefault()
@@ -401,6 +508,16 @@ export function ChatPanel({
             className={cn(showEmptyScreen ? 'visible' : 'invisible')}
           />
         )}
+
+        {/* Add SearchSourceManager */}
+        <SearchSourceManager
+          messages={messages}
+          onSourceSelect={handleSourceSelect}
+          inputValue={input}
+          position={sourcePickerPosition}
+          isVisible={isSourcePickerVisible}
+          onClose={handleCloseSourcePicker}
+        />
       </form>
     </div>
   )

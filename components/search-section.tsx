@@ -1,9 +1,8 @@
 'use client'
 
-import { CHAT_ID } from '@/lib/constants'
-import type { SearchResults as TypeSearchResults } from '@/lib/types'
+import type { ExtendedMessage, SearchResultItem, SearchResults as TypeSearchResults } from '@/lib/types'
+import { extractSearchSources } from '@/lib/utils/search'
 import { ToolInvocation } from 'ai'
-import { useChat } from 'ai/react'
 import React from 'react'
 import { CollapsibleMessage } from './collapsible-message'
 import { useDeepResearch, useDeepResearchProgress } from './deep-research-provider'
@@ -16,18 +15,24 @@ interface SearchSectionProps {
   tool: ToolInvocation
   isOpen: boolean
   onOpenChange: (open: boolean) => void
+  messages: ExtendedMessage[]
+  setMessages: (messages: ExtendedMessage[]) => void
+  chatId: string
 }
 
 export function SearchSection({
   tool,
   isOpen,
-  onOpenChange
+  onOpenChange,
+  messages,
+  setMessages,
+  chatId
 }: SearchSectionProps) {
-  // Chat and research hooks
-  const { isLoading } = useChat({ id: CHAT_ID })
   const { state, addActivity, addSource, setDepth } = useDeepResearch()
   const { currentDepth } = state
-  const { shouldContinueResearch, nextDepth, maxDepth } = useDeepResearchProgress(currentDepth)
+  const { shouldContinueResearch, nextDepth, maxDepth } = useDeepResearchProgress(currentDepth, 7, chatId)
+  const activityAddedRef = React.useRef<{[key: string]: boolean}>({})
+  const sourcesProcessedRef = React.useRef<{[key: string]: boolean}>({})
 
   // Tool and search state
   const isToolLoading = tool.state === 'call'
@@ -40,7 +45,7 @@ export function SearchSection({
     : ''
 
   // Helper function to calculate relevance score
-  const calculateRelevance = (result: { title: string; content?: string }, query: string | undefined): number => {
+  const calculateRelevance = React.useCallback((result: { title: string; content?: string }, query: string | undefined): number => {
     if (!query) return 0.5
     
     const queryTerms = query.toLowerCase().split(' ')
@@ -55,14 +60,115 @@ export function SearchSection({
       : 0
     
     return (titleMatch * 0.6 + contentMatch * 0.4)
-  }
+  }, [])
 
-  // Update Deep Research context when search is performed
+  // Process search results (sources and messages)
+  const processSearchResults = React.useCallback(async () => {
+    if (!query || tool.state !== 'result' || !searchResults?.results) return
+    
+    const resultsKey = `${tool.toolCallId}-results`
+    if (sourcesProcessedRef.current[resultsKey]) return
+    
+    try {
+      // Consolidate all search results including direct URLs
+      const allResults: SearchResultItem[] = [
+        ...searchResults.results,
+        ...(searchResults.directUrls || []).map((url: string) => ({
+          url,
+          title: 'Direct Source',
+          snippet: 'Direct source reference',
+          content: undefined
+        }))
+      ]
+
+      // Add sources to Deep Research context
+      const sourcesToAdd = allResults.map(result => ({
+        url: result.url,
+        title: result.title,
+        relevance: calculateRelevance({
+          title: result.title,
+          content: result.content
+        }, query)
+      }))
+
+      // Add all sources in one batch operation
+      await Promise.all(sourcesToAdd.map(source => addSource(source)))
+
+      // Update message with search sources
+      const message = messages.find(msg => 
+        msg.toolInvocations?.some(t => t.toolCallId === tool.toolCallId)
+      )
+
+      if (message) {
+        const searchSources = extractSearchSources(
+          allResults,
+          message.id,
+          query
+        )
+        
+        // Create new messages array with updated message
+        const updatedMessages: ExtendedMessage[] = messages.map(msg => {
+          if (msg.id === message.id) {
+            // Create updated message with search sources
+            const updatedMessage: ExtendedMessage = {
+              ...msg,
+              searchSources
+            }
+            return updatedMessage
+          }
+          return msg
+        })
+        
+        // Update messages state
+        setMessages(updatedMessages)
+      }
+
+      // Mark as processed
+      sourcesProcessedRef.current[resultsKey] = true
+
+      // Handle research continuation
+      if (shouldContinueResearch) {
+        const analysisKey = `${tool.toolCallId}-analysis`
+        if (!activityAddedRef.current[analysisKey]) {
+          addActivity({
+            type: 'analyze',
+            status: 'pending',
+            message: 'Analyzing results to determine next research direction...',
+            timestamp: new Date().toISOString(),
+            depth: currentDepth
+          })
+          activityAddedRef.current[analysisKey] = true
+          setDepth(nextDepth, maxDepth)
+        }
+      }
+    } catch (error) {
+      console.error('Error processing search results:', error)
+    }
+  }, [
+    query,
+    tool.state,
+    tool.toolCallId,
+    searchResults,
+    addSource,
+    calculateRelevance,
+    messages,
+    setMessages,
+    shouldContinueResearch,
+    addActivity,
+    currentDepth,
+    nextDepth,
+    maxDepth,
+    setDepth
+  ])
+
+  // Track search activities
   React.useEffect(() => {
     if (!query) return
 
+    const activityKey = `${tool.toolCallId}-${tool.state}`
+    if (activityAddedRef.current[activityKey]) return
+
     if (tool.state === 'call') {
-      // Start a new research activity
       addActivity({
         type: 'search',
         status: 'pending',
@@ -70,51 +176,23 @@ export function SearchSection({
         timestamp: new Date().toISOString(),
         depth: currentDepth
       })
-    } else if (tool.state === 'result' && searchResults) {
-      // Complete current research activity
+      activityAddedRef.current[activityKey] = true
+    } else if (tool.state === 'result') {
       addActivity({
         type: 'search',
         status: 'complete',
-        message: `Depth ${currentDepth}: Found ${searchResults.results.length} results for: ${query}`,
+        message: `Depth ${currentDepth}: Found ${searchResults?.results?.length ?? 0} results for: ${query}`,
         timestamp: new Date().toISOString(),
         depth: currentDepth
       })
-
-      // Add sources to Deep Research context
-      searchResults.results.forEach((result) => {
-        addSource({
-          url: result.url,
-          title: result.title,
-          relevance: calculateRelevance(result, query)
-        })
-      })
-
-      // If we should continue researching, start analysis phase
-      if (shouldContinueResearch) {
-        addActivity({
-          type: 'analyze',
-          status: 'pending',
-          message: 'Analyzing results to determine next research direction...',
-          timestamp: new Date().toISOString(),
-          depth: currentDepth
-        })
-
-        // Update depth for next iteration
-        setDepth(nextDepth, maxDepth)
-      }
+      activityAddedRef.current[activityKey] = true
     }
-  }, [
-    tool.state,
-    searchResults,
-    query,
-    currentDepth,
-    addActivity,
-    addSource,
-    setDepth,
-    shouldContinueResearch,
-    nextDepth,
-    maxDepth
-  ])
+  }, [tool.state, tool.toolCallId, query, currentDepth, addActivity, searchResults?.results?.length])
+
+  // Process results when available
+  React.useEffect(() => {
+    processSearchResults()
+  }, [processSearchResults])
 
   const header = (
     <ToolArgsSection

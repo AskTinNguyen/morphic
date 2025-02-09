@@ -102,6 +102,7 @@ export function Chat({
               onQuerySelect={onQuerySelect}
               isLoading={isLoading}
               chatId={id}
+              setMessages={setMessages}
             />
             <ChatPanel
               input={input}

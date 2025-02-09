@@ -33,30 +33,15 @@ export class ChartDataProcessor {
 
     const processedData: ProcessedChartData<TType> = {
       labels,
-      datasets: datasets.map((dataset, index) => {
-        // Temperature dataset (first dataset)
-        if (index === 0) {
-          return {
-            ...dataset,
-            borderWidth: 2,
-            backgroundColor: 'rgba(255, 159, 64, 0.1)', // Warm orange
-            borderColor: 'rgb(255, 159, 64)',
-            tension: 0.4,
-            label: dataset.label || 'Temperature (°C)',
-            yAxisID: 'y' // Left y-axis for temperature
-          }
-        }
-        // AQI dataset (second dataset)
-        return {
-          ...dataset,
-          borderWidth: 2,
-          backgroundColor: 'rgba(75, 192, 192, 0.1)', // Cool teal
-          borderColor: 'rgb(75, 192, 192)',
-          tension: 0.4,
-          label: dataset.label || 'AQI',
-          yAxisID: 'y1' // Right y-axis for AQI
-        }
-      }) as unknown as ChartDataset<TType>[],
+      datasets: datasets.map((dataset) => ({
+        ...dataset,
+        borderWidth: 2,
+        backgroundColor: dataset.backgroundColor || 'rgba(75, 192, 192, 0.1)',
+        borderColor: dataset.borderColor || 'rgb(75, 192, 192)',
+        tension: 0.4,
+        label: dataset.label || 'Value',
+        yAxisID: 'y'  // Single y-axis for all datasets
+      })) as unknown as ChartDataset<TType>[],
       lastUpdated: Date.now()
     }
 
@@ -113,19 +98,19 @@ export class ChartDataProcessor {
     const processDatasets = (datasets: ChartDataset<TType>[]): ChartDataset<TType>[] => {
       switch (type) {
         case 'line':
-          return datasets.map((dataset, index) => ({
+          return datasets.map(dataset => ({
             ...dataset,
             type: 'line',
             fill: false,
             tension: 0.4,
-            yAxisID: index === 0 ? 'y' : 'y1' // Ensure y-axis IDs are preserved
+            yAxisID: 'y'
           })) as unknown as ChartDataset<TType>[]
         case 'bar':
-          return datasets.map((dataset, index) => ({
+          return datasets.map(dataset => ({
             ...dataset,
             type: 'bar',
             borderWidth: 1,
-            yAxisID: index === 0 ? 'y' : 'y1' // Ensure y-axis IDs are preserved
+            yAxisID: 'y'
           })) as unknown as ChartDataset<TType>[]
         default:
           return datasets

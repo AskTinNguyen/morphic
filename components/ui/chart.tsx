@@ -106,6 +106,21 @@ function BaseChartComponent({
         options: {
           responsive: true,
           maintainAspectRatio: false,
+          scales: {
+            y: {
+              beginAtZero: true,
+              title: {
+                display: true,
+                text: formattedData.datasets[0]?.label || 'Value'
+              }
+            },
+            x: {
+              title: {
+                display: true,
+                text: 'Hotels'
+              }
+            }
+          },
           ...options
         }
       })

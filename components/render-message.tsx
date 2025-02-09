@@ -29,6 +29,8 @@ interface RenderMessageProps {
   onOpenChange: (id: string, open: boolean) => void
   onQuerySelect: (query: string) => void
   chatId?: string
+  messages: Message[]
+  setMessages: (messages: Message[]) => void
 }
 
 export function RenderMessage({
@@ -37,7 +39,9 @@ export function RenderMessage({
   getIsOpen,
   onOpenChange,
   onQuerySelect,
-  chatId
+  chatId,
+  messages,
+  setMessages
 }: RenderMessageProps) {
   const relatedQuestions = useMemo(
     () =>
@@ -107,21 +111,6 @@ export function RenderMessage({
     )
   }
 
-  if (message.toolInvocations?.length) {
-    return (
-      <>
-        {message.toolInvocations.map(tool => (
-          <ToolSection
-            key={tool.toolCallId}
-            tool={tool}
-            isOpen={getIsOpen(messageId)}
-            onOpenChange={open => onOpenChange(messageId, open)}
-          />
-        ))}
-      </>
-    )
-  }
-
   // Clean the content by removing the chart data XML if present
   const cleanContent = typeof message.content === 'string' 
     ? message.content.replace(/<chart_data>[\s\S]*?<\/chart_data>/g, '').trim()
@@ -129,17 +118,33 @@ export function RenderMessage({
 
   return (
     <>
-      {toolData.map(tool => (
-        <ToolSection
-          key={tool.toolCallId}
-          tool={tool}
-          isOpen={getIsOpen(tool.toolCallId)}
-          onOpenChange={open => onOpenChange(tool.toolCallId, open)}
-        />
-      ))}
-      {/* Only render content section if there are no tool invocations */}
-      {!message.toolInvocations && (
+      {(message.toolInvocations && message.toolInvocations.length > 0) ? (
+        // If there are tool invocations, only render those
+        message.toolInvocations.map(tool => (
+          <ToolSection
+            key={tool.toolCallId}
+            tool={tool}
+            isOpen={getIsOpen(messageId)}
+            onOpenChange={open => onOpenChange(messageId, open)}
+            messages={messages}
+            setMessages={setMessages}
+            chatId={chatId ?? 'default'}
+          />
+        ))
+      ) : (
+        // Otherwise render manual tool data and content
         <>
+          {toolData.map(tool => (
+            <ToolSection
+              key={tool.toolCallId}
+              tool={tool}
+              isOpen={getIsOpen(tool.toolCallId)}
+              onOpenChange={open => onOpenChange(tool.toolCallId, open)}
+              messages={messages}
+              setMessages={setMessages}
+              chatId={chatId ?? 'default'}
+            />
+          ))}
           {message.reasoning ? (
             <ReasoningAnswerSection
               content={{

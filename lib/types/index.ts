@@ -1,21 +1,19 @@
 import { CoreMessage, JSONValue, Message } from 'ai'
 
-export type SearchResults = {
-  images: SearchResultImage[]
+export interface SearchResults {
   results: SearchResultItem[]
+  images?: SearchResultImage[]
+  directUrls?: string[]
   number_of_results?: number
-  query: string
 }
 
 // If enabled the include_images_description is true, the images will be an array of { url: string, description: string }
 // Otherwise, the images will be an array of strings
-export type SearchResultImage =
-  | string
-  | {
-      url: string
-      description: string
-      number_of_results?: number
-    }
+export type SearchResultImage = {
+  url: string
+  title?: string
+  thumbnail?: string
+}
 
 export type ExaSearchResults = {
   results: ExaSearchResultItem[]
@@ -31,9 +29,10 @@ export type SerperSearchResults = {
 }
 
 export type SearchResultItem = {
-  title: string
   url: string
-  content: string
+  title: string
+  snippet?: string
+  content?: string
 }
 
 export type ExaSearchResultItem = {
@@ -142,4 +141,17 @@ export interface AutocompleteSuggestion {
   text: string
   confidence: number
   source?: ResearchSource
+}
+
+export interface SearchSource {
+  url: string
+  title?: string
+  snippet?: string
+  timestamp: number
+  messageId: string
+  searchQuery?: string
+}
+
+export interface ExtendedMessage extends Message {
+  searchSources?: SearchSource[]
 }

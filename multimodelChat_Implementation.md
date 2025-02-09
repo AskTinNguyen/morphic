@@ -5,43 +5,82 @@
 ### A. Core Components
 
 *   `/components`
-    *   `/multimodal-chat` ✅
-        *   `types.ts` ✅                # Core type definitions
-        *   `MultimodalChatPanel.tsx` ✅ # Enhanced version of current ChatPanel
-        *   `FileDropzone.tsx` ✅        # New component for file handling
-        *   `ImagePreview.tsx` ✅        # New component for image previews
-        *   `SourceQuickInsert.tsx` ✅   # New component for URL source insertion
-        *   `AutoComplete.tsx` ✅        # New component for AI suggestions
-        *   `ModelSelector.tsx` ✅       # Enhanced model selector with props
-        *   `SearchModeToggle.tsx` ✅    # Enhanced search mode toggle with props
+    *   `chat-panel.tsx` ✅           # Main chat component with enhanced features
+    *   `/chat`                       # Supporting components
+        *   `ImagePreview.tsx` ✅     # Image preview component
+        *   `ModelSelector.tsx` ✅    # Model selection component
+        *   `SearchModeToggle.tsx` ✅ # Search mode toggle component
+    *   `/ui`                         # Shared UI components
+        *   `button.tsx` ✅
+        *   `icons.tsx` ✅
 
 ### B. State Management ✅
 
 ```typescript
-// Enhanced state incorporating existing functionality
-interface MultimodalChatState {
-  // Existing state
+// Current ChatPanel state
+interface ChatPanelState {
+  // Core state
   input: string
-  isComposing: boolean        // From current IME support
-  enterDisabled: boolean      // From current enter handling
-  modelSelection: string      // From existing model selector
-  searchMode: boolean         // From existing search toggle
+  isComposing: boolean
+  enterDisabled: boolean
+  showEmptyScreen: boolean
   
-  // New state for multimodal features
+  // View states
+  isFullSize: boolean
+  isMarkdownView: boolean
+  searchMode: boolean
+  
+  // File handling
   attachments: AttachmentFile[]
-  uploadQueue: string[]
-  suggestions: AutocompleteSuggestion[]
-  selectedSources: ResearchSource[]
-  dropzoneActive: boolean
-  previewExpanded: boolean
+  isDragActive: boolean
 }
 
-// Enhanced message type
-interface MultimodalMessage extends Message {
+interface AttachmentFile {
+  id: string
+  file: File
+  type: 'image' | 'document' | 'other'
+  previewUrl?: string
+  status: 'uploading' | 'ready' | 'error'
+  progress: number
+  url?: string
+  error?: string
+}
+
+interface Message {
+  role: string
+  content: string
+  id: string
   attachments?: AttachmentFile[]
-  sources?: ResearchSource[]
 }
 ```
+
+## 2. Implementation Strategy
+
+### A. Enhanced ChatPanel Features ✅
+
+1. **Base Functionality**
+   * Text input with markdown support ✅
+   * Full-size toggle mode ✅
+   * Responsive height management ✅
+   * IME input support ✅
+
+2. **File Handling**
+   * Drag and drop interface ✅
+   * File validation ✅
+   * Upload progress tracking ✅
+   * Preview generation ✅
+
+3. **UI Components**
+   * Model selector integration ✅
+   * Search mode toggle ✅
+   * New chat button ✅
+   * Format toggle button ✅
+
+4. **Markdown Features**
+   * Toggle between raw/preview ✅
+   * Syntax highlighting
+   * Custom component styling ✅
+   * Responsive layout ✅
 
 ## 2. Next Steps
 
@@ -115,8 +154,7 @@ interface MultimodalMessage extends Message {
 
 1. Stage 1: Core Components
    - Deploy base components ✅
-   - Add basic file handling
-   - Implement source integration
+   - Add basic image and pdf file handling ✅
 
 2. Stage 2: Enhanced Features
    - Add file upload endpoints
@@ -303,6 +341,26 @@ interface MultimodalMessage extends Message {
 *   Enhance autocomplete performance
 *   Fine-tune accessibility
 *   Add final UX improvements
+
+#### Recent UI Improvements ✅
+
+1. **Chat Input Height Optimization**
+   * Reduced default input height for better space efficiency
+   * Adjusted minimum heights:
+     - Regular mode: `min-h-8` (reduced from `min-h-12`)
+     - Full-size mode: `min-h-[200px]`
+   * Implemented responsive max heights:
+     - Regular mode: maxRows={10}
+     - Full-size mode: `max-h-[500px]`
+   * Added overflow handling with `overflow-y-auto`
+   * Maintained consistent padding with `px-4 py-3`
+
+2. **Markdown View Height Adjustments**
+   * Synchronized height constraints with text input
+   * Set markdown view heights:
+     - Regular mode: `min-h-12`
+     - Full-size mode: `min-h-[120px]` with `max-h-[820px]`
+   * Preserved responsive behavior across view modes
 
 ## 5. Technical Considerations
 

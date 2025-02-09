@@ -1,6 +1,6 @@
 'use client'
 
-import { ToolInvocation } from 'ai'
+import { Message, ToolInvocation } from 'ai'
 import RetrieveSection from './retrieve-section'
 import { SearchSection } from './search-section'
 import { VideoSearchSection } from './video-search-section'
@@ -9,9 +9,19 @@ interface ToolSectionProps {
   tool: ToolInvocation
   isOpen: boolean
   onOpenChange: (open: boolean) => void
+  messages: Message[]
+  setMessages: (messages: Message[]) => void
+  chatId: string
 }
 
-export function ToolSection({ tool, isOpen, onOpenChange }: ToolSectionProps) {
+export function ToolSection({ 
+  tool, 
+  isOpen, 
+  onOpenChange,
+  messages,
+  setMessages,
+  chatId
+}: ToolSectionProps) {
   switch (tool.toolName) {
     case 'search':
       return (
@@ -19,6 +29,9 @@ export function ToolSection({ tool, isOpen, onOpenChange }: ToolSectionProps) {
           tool={tool}
           isOpen={isOpen}
           onOpenChange={onOpenChange}
+          messages={messages}
+          setMessages={setMessages}
+          chatId={chatId}
         />
       )
     case 'video_search':
