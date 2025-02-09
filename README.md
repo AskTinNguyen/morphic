@@ -222,3 +222,86 @@ Please see our [Contributing Guide](CONTRIBUTING.md) for details on:
 - How to submit pull requests
 - Commit message conventions
 - Development setup
+
+# Morphic Chat
+
+A powerful chat interface with multimodal capabilities, built with Next.js and TypeScript.
+
+## Features
+
+- 💬 Text-based chat with AI models
+- 📎 File attachments and image uploads
+- 🔍 Research mode with source integration
+- 💡 AI-powered text suggestions
+- 🎯 Context-aware responses
+- 🖼️ Image and document previews
+- 📱 Responsive design
+- ♿ Accessibility support
+
+## Components
+
+The chat interface is built with modular components:
+
+- `ChatPanel`: Main chat interface
+- `FileDropzone`: File upload handling
+- `ImagePreview`: Media preview and management
+- `SourceQuickInsert`: Research source integration
+- `AutoComplete`: AI suggestions
+
+For detailed documentation, see [Chat Components Documentation](docs/chat-components.md).
+
+## Getting Started
+
+1. Install dependencies:
+   ```bash
+   npm install
+   ```
+
+2. Set up environment variables:
+   ```bash
+   cp .env.example .env.local
+   ```
+
+3. Run the development server:
+   ```bash
+   npm run dev
+   ```
+
+## File Upload
+
+Supports:
+- Images (JPEG, PNG, GIF)
+- Documents (PDF)
+- Size limit: 5MB per file
+- Drag & drop interface
+- Progress tracking
+- Preview generation
+
+## Research Integration
+
+- Source management
+- Relevance scoring
+- Quick citation insertion
+- Context preservation
+- Search mode integration
+
+## Accessibility
+
+- Keyboard navigation
+- Screen reader support
+- ARIA labels
+- Focus management
+- Error announcements
+
+## Contributing
+
+1. Fork the repository
+2. Create your feature branch
+3. Make your changes
+4. Submit a pull request
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for detailed guidelines.
+
+## License
+
+This project is licensed under the Apache License 2.0 - see the [LICENSE](LICENSE) file for details.

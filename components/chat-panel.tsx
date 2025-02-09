@@ -1,16 +1,25 @@
 'use client'
 
+import { AttachmentFile } from '@/lib/types'
 import { cn } from '@/lib/utils'
+import { uploadFile, validateFile } from '@/lib/utils/upload'
 import { Message } from 'ai'
 import { ArrowUp, MessageCirclePlus, Square } from 'lucide-react'
+import { nanoid } from 'nanoid'
 import { useRouter } from 'next/navigation'
 import { useEffect, useRef, useState } from 'react'
 import Textarea from 'react-textarea-autosize'
+import { FileDropzone } from './chat/FileDropzone'
+import { ImagePreview } from './chat/ImagePreview'
 import { EmptyScreen } from './empty-screen'
 import { ModelSelector } from './model-selector'
 import { SearchModeToggle } from './search-mode-toggle'
 import { Button } from './ui/button'
 import { IconLogo } from './ui/icons'
+
+interface UploadResponse {
+  url: string
+}
 
 interface ChatPanelProps {
   input: string
@@ -21,7 +30,10 @@ interface ChatPanelProps {
   setMessages: (messages: Message[]) => void
   query?: string
   stop: () => void
-  append: (message: any) => void
+  append: (message: Message) => void
+  //suggestions?: AutocompleteSuggestion[]
+  //sources?: ResearchSource[]
+  onSearchModeChange?: (enabled: boolean) => void
 }
 
 export function ChatPanel({
@@ -33,14 +45,20 @@ export function ChatPanel({
   setMessages,
   query,
   stop,
-  append
+  append,
+  //suggestions = [],
+  //sources = [],
+  // onSearchModeChange
 }: ChatPanelProps) {
   const [showEmptyScreen, setShowEmptyScreen] = useState(false)
+  const [searchMode, setSearchMode] = useState(false)
   const router = useRouter()
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const isFirstRender = useRef(true)
   const [isComposing, setIsComposing] = useState(false) // Composition state
   const [enterDisabled, setEnterDisabled] = useState(false) // Disable Enter after composition ends
+  const [attachments, setAttachments] = useState<AttachmentFile[]>([])
+  const [dropzoneActive, setDropzoneActive] = useState(false)
 
   const handleCompositionStart = () => setIsComposing(true)
 
@@ -57,17 +75,93 @@ export function ChatPanel({
     router.push('/')
   }
 
-  // if query is not empty, submit the query
+  const handleFileAccepted = async (files: File[]) => {
+    const newAttachments: AttachmentFile[] = []
+
+    for (const file of files) {
+      try {
+        validateFile(file)
+        const id = nanoid()
+        const type = file.type.startsWith('image/') ? 'image' : file.type === 'application/pdf' ? 'document' : 'other'
+        
+        // Create preview URL for images
+        const previewUrl = type === 'image' ? URL.createObjectURL(file) : undefined
+
+        const attachment: AttachmentFile = {
+          id,
+          file,
+          type,
+          previewUrl,
+          status: 'uploading',
+          progress: 0
+        }
+
+        newAttachments.push(attachment)
+        setAttachments(prev => [...prev, attachment])
+
+        // Start upload
+        try {
+          const response = await uploadFile(file, (progress) => {
+            setAttachments(prev =>
+              prev.map(a =>
+                a.id === id ? { ...a, progress } : a
+              )
+            )
+          }) as UploadResponse
+
+          // Update attachment with upload result
+          setAttachments(prev =>
+            prev.map(a =>
+              a.id === id
+                ? {
+                    ...a,
+                    status: 'ready',
+                    progress: 100,
+                    url: response.url
+                  }
+                : a
+            )
+          )
+        } catch (error) {
+          setAttachments(prev =>
+            prev.map(a =>
+              a.id === id
+                ? {
+                    ...a,
+                    status: 'error',
+                    error: error instanceof Error ? error.message : 'Upload failed'
+                  }
+                : a
+            )
+          )
+        }
+      } catch (error) {
+        // Handle validation error
+        console.error('File validation error:', error)
+      }
+    }
+  }
+
+  const handleRemoveAttachment = (id: string) => {
+    setAttachments(prev => {
+      const attachment = prev.find(a => a.id === id)
+      if (attachment?.previewUrl) {
+        URL.revokeObjectURL(attachment.previewUrl)
+      }
+      return prev.filter(a => a.id !== id)
+    })
+  }
+
   useEffect(() => {
     if (isFirstRender.current && query && query.trim().length > 0) {
       append({
         role: 'user',
-        content: query
+        content: query,
+        id: nanoid()
       })
       isFirstRender.current = false
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [query])
+  }, [query, append])
 
   return (
     <div
@@ -91,6 +185,12 @@ export function ChatPanel({
         )}
       >
         <div className="relative flex flex-col w-full gap-2 bg-muted rounded-3xl border border-input">
+          <FileDropzone
+            onFilesAccepted={handleFileAccepted}
+            isActive={dropzoneActive}
+            onActiveChange={setDropzoneActive}
+            className="absolute inset-0"
+          />
           <Textarea
             ref={inputRef}
             name="input"
@@ -127,11 +227,25 @@ export function ChatPanel({
             onBlur={() => setShowEmptyScreen(false)}
           />
 
+          {/* Show image previews if there are attachments */}
+          {attachments.length > 0 && (
+            <ImagePreview
+              attachments={attachments}
+              onRemove={handleRemoveAttachment}
+            />
+          )}
+
           {/* Bottom menu area */}
           <div className="flex items-center justify-between p-3">
             <div className="flex items-center gap-2">
               <ModelSelector />
-              <SearchModeToggle />
+              <SearchModeToggle
+                enabled={searchMode}
+                onEnabledChange={(enabled: boolean) => {
+                  setSearchMode(enabled)
+                  onSearchModeChange?.(enabled)
+                }}
+              />
             </div>
             <div className="flex items-center gap-2">
               {messages.length > 0 && (

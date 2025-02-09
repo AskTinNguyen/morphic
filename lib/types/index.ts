@@ -113,3 +113,33 @@ export type SearXNGSearchResults = {
   number_of_results?: number
   query: string
 }
+
+export interface AttachmentFile {
+  id: string
+  file: File
+  type: 'image' | 'document' | 'other'
+  previewUrl?: string
+  status: 'uploading' | 'processing' | 'ready' | 'error'
+  progress?: number
+  error?: string
+}
+
+export interface ResearchSource {
+  id: string
+  url: string
+  title?: string
+  relevance?: number
+  snippet?: string
+}
+
+export interface MultimodalMessage extends Message {
+  attachments?: AttachmentFile[]
+  sources?: ResearchSource[]
+}
+
+export interface AutocompleteSuggestion {
+  id: string
+  text: string
+  confidence: number
+  source?: ResearchSource
+}
