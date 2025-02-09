@@ -4,7 +4,7 @@ import { AttachmentFile } from '@/lib/types'
 import { cn } from '@/lib/utils'
 import { uploadFile, validateFile } from '@/lib/utils/upload'
 import { Message } from 'ai'
-import { ArrowUp, MessageCirclePlus, Square, Upload } from 'lucide-react'
+import { ArrowUp, Maximize2, MessageCirclePlus, Square, Upload } from 'lucide-react'
 import { nanoid } from 'nanoid'
 import { useRouter } from 'next/navigation'
 import { useEffect, useRef, useState } from 'react'
@@ -52,6 +52,7 @@ export function ChatPanel({
 }: ChatPanelProps) {
   const [showEmptyScreen, setShowEmptyScreen] = useState(false)
   const [searchMode, setSearchMode] = useState(false)
+  const [isFullSize, setIsFullSize] = useState(false)
   const router = useRouter()
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const isFirstRender = useRef(true)
@@ -194,7 +195,7 @@ export function ChatPanel({
           messages.length > 0 ? 'px-2 py-4' : 'px-6'
         )}
       >
-        <div className="relative flex flex-col w-full gap-2 bg-muted rounded-3xl border border-input">
+        <div className="relative flex flex-col w-full gap-0 bg-muted rounded-3xl border border-input">
           <div className="relative w-full">
             <div
               {...getRootProps()}
@@ -207,8 +208,8 @@ export function ChatPanel({
               <Textarea
                 ref={inputRef}
                 name="input"
-                rows={2}
-                maxRows={5}
+                rows={isFullSize ? undefined : 2}
+                maxRows={isFullSize ? undefined : 10}
                 tabIndex={0}
                 onCompositionStart={handleCompositionStart}
                 onCompositionEnd={handleCompositionEnd}
@@ -216,10 +217,11 @@ export function ChatPanel({
                 spellCheck={false}
                 value={input}
                 className={cn(
-                  "resize-none w-full min-h-12 bg-transparent border-0 px-4 py-3 text-sm",
+                  "resize-none w-full bg-transparent border-0 px-4 py-3 text-sm",
                   "placeholder:text-muted-foreground focus-visible:outline-none",
                   "disabled:cursor-not-allowed disabled:opacity-50",
-                  isDragActive && "opacity-50"
+                  isDragActive && "opacity-50",
+                  isFullSize ? "min-h-[200px] max-h-[500px] overflow-y-auto" : "min-h-12"
                 )}
                 disabled={isDragActive}
                 onChange={e => {
@@ -264,41 +266,64 @@ export function ChatPanel({
             />
           )}
 
-          {/* Bottom menu area */}
+          {/* Bottom menu area - This is the main container for all buttons */}
           <div className="flex items-center justify-between p-3">
+            {/* Left side buttons group - Currently contains ModelSelector and SearchModeToggle */}
             <div className="flex items-center gap-2">
-              <ModelSelector />
-              <SearchModeToggle
-                enabled={searchMode}
-                onEnabledChange={(enabled: boolean) => {
-                  setSearchMode(enabled)
-                  onSearchModeChange?.(enabled)
-                }}
-              />
+                <ModelSelector />
+                <SearchModeToggle
+                    enabled={searchMode}
+                    onEnabledChange={(enabled: boolean) => {
+                        setSearchMode(enabled)
+                        onSearchModeChange?.(enabled)
+                    }}
+                />
             </div>
+
+            {/* Right side buttons group - Currently contains New Chat, Full Size, and Submit */}
             <div className="flex items-center gap-2">
-              {messages.length > 0 && (
+                {/* New Chat button - Can be moved anywhere within either group */}
+                {messages.length > 0 && (
+                    <Button
+                        variant="outline"
+                        size="icon"
+                        onClick={handleNewChat}
+                        className="shrink-0 rounded-full group"
+                        type="button"
+                        disabled={isLoading}
+                    >
+                        <MessageCirclePlus className="size-4 group-hover:rotate-12 transition-all" />
+                    </Button>
+                )}
+
+                {/* Full Size toggle button - Can be moved anywhere within either group */}
                 <Button
-                  variant="outline"
-                  size="icon"
-                  onClick={handleNewChat}
-                  className="shrink-0 rounded-full group"
-                  type="button"
-                  disabled={isLoading}
+                    variant="outline"
+                    size="icon"
+                    onClick={() => setIsFullSize(!isFullSize)}
+                    className={cn(
+                        "shrink-0 rounded-full group",
+                        isFullSize && "bg-primary/10"
+                    )}
+                    type="button"
                 >
-                  <MessageCirclePlus className="size-4 group-hover:rotate-12 transition-all" />
+                    <Maximize2 className={cn(
+                        "size-4 transition-transform",
+                        isFullSize && "rotate-180"
+                    )} />
                 </Button>
-              )}
-              <Button
-                type={isLoading ? 'button' : 'submit'}
-                size={'icon'}
-                variant={'outline'}
-                className={cn(isLoading && 'animate-pulse', 'rounded-full')}
-                disabled={input.length === 0 && !isLoading}
-                onClick={isLoading ? stop : undefined}
-              >
-                {isLoading ? <Square size={20} /> : <ArrowUp size={20} />}
-              </Button>
+
+                {/* Submit/Send button - Can be moved anywhere within either group */}
+                <Button
+                    type={isLoading ? 'button' : 'submit'}
+                    size={'icon'}
+                    variant={'outline'}
+                    className={cn(isLoading && 'animate-pulse', 'rounded-full')}
+                    disabled={input.length === 0 && !isLoading}
+                    onClick={isLoading ? stop : undefined}
+                >
+                    {isLoading ? <Square size={20} /> : <ArrowUp size={20} />}
+                </Button>
             </div>
           </div>
         </div>
