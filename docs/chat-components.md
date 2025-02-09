@@ -198,9 +198,9 @@ function Chat() {
 5. Success/error states are handled
 6. Attachments can be removed
 
-## Current Features ✅
+## Current Features
 
-### Input Management
+### Input Management ✅
 - Expandable text input
 - Markdown preview toggle
 - Full-size mode toggle
@@ -208,7 +208,7 @@ function Chat() {
 - Enter key submission
 - Shift+Enter for new lines
 
-### File Handling
+### File Handling ✅
 - Drag and drop support
 - File type validation
 - Upload progress tracking
@@ -216,7 +216,7 @@ function Chat() {
 - Error handling
 - Removal capability
 
-### UI Components
+### UI Components ✅
 - Model selector
 - Search mode toggle
 - New chat button
@@ -224,7 +224,22 @@ function Chat() {
 - Submit/Stop button
 - Loading states
 
-### Markdown Support
+### Keyboard Shortcuts ✅
+- Search Mode Toggle:
+  - Mac: `⌘ + .`
+  - Windows/Linux: `Ctrl + .`
+  - Visual indicator in button
+  - Prevents default browser behavior
+  - Accessible across entire chat interface
+
+- Model Selector:
+  - Mac: `⌘ + ↑`
+  - Windows/Linux: `Ctrl + ↑`
+  - Visual indicator in button (hidden on mobile)
+  - Controlled component state
+  - Preserves selected model on toggle
+
+### Markdown Support ✅
 - Preview mode
 - Custom styling
 - Dark mode support
@@ -301,6 +316,33 @@ interface SearchSource {
 - Preserves text before and after insertion
 - Automatically focuses textarea after insertion
 - Places cursor after inserted link for continued typing
+
+#### Keyboard Shortcuts Implementation ✅
+- Centralized keyboard event handling in ChatPanel
+- Event listeners with proper cleanup
+- Platform-specific shortcut detection:
+  ```typescript
+  const isMac = navigator.platform.toLowerCase().includes('mac')
+  const shortcutText = isMac ? '⌘' : 'Ctrl'
+  ```
+- Controlled component architecture:
+  ```typescript
+  interface ModelSelectorProps {
+    open?: boolean
+    onOpenChange?: (open: boolean) => void
+  }
+  ```
+- Visual feedback:
+  ```tsx
+  <kbd className="ml-2 text-[10px] text-muted-foreground">
+    {shortcutText} + {key}
+  </kbd>
+  ```
+- State management:
+  - Search mode toggle state
+  - Model selector open state
+  - Proper dependency tracking in useEffect
+  - Event prevention for browser defaults
 
 ### Usage Flow ✅
 

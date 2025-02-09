@@ -40,6 +40,12 @@ export function SearchSourceManager({
 
   // Filter sources based on input
   useEffect(() => {
+    // If no @ symbol in input at all, close the manager
+    if (!inputValue.includes('@')) {
+      onClose()
+      return
+    }
+
     // If no input or just @, show all sources
     if (!inputValue.trim() || inputValue.trim() === '@') {
       setFilteredSources(sources)

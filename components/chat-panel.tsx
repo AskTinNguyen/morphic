@@ -66,6 +66,29 @@ export function ChatPanel({
   const [isSourcePickerVisible, setIsSourcePickerVisible] = useState(false)
   const [sourcePickerPosition, setSourcePickerPosition] = useState({ top: 0, left: 0 })
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const [modelSelectorOpen, setModelSelectorOpen] = useState(false)
+
+  // Add keyboard shortcuts handler
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Check for Command + . (Mac) or Control + . (Windows/Linux) for search mode
+      if ((e.metaKey || e.ctrlKey) && e.key === '.') {
+        e.preventDefault()
+        const newSearchMode = !searchMode
+        setSearchMode(newSearchMode)
+        onSearchModeChange?.(newSearchMode)
+      }
+      
+      // Check for Command + Up Arrow (Mac) or Control + Up Arrow (Windows/Linux) for model selector
+      if ((e.metaKey || e.ctrlKey) && e.key === 'ArrowUp') {
+        e.preventDefault()
+        setModelSelectorOpen(!modelSelectorOpen)
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [searchMode, onSearchModeChange, modelSelectorOpen])
 
   const handleCompositionStart = () => setIsComposing(true)
 
@@ -425,7 +448,7 @@ export function ChatPanel({
           <div className="flex items-center justify-between p-3">
             {/* Left side buttons group - Currently contains ModelSelector and SearchModeToggle */}
             <div className="flex items-center gap-2">
-                <ModelSelector />
+                <ModelSelector open={modelSelectorOpen} onOpenChange={setModelSelectorOpen} />
                 <SearchModeToggle
                     enabled={searchMode}
                     onEnabledChange={(enabled: boolean) => {

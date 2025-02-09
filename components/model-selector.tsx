@@ -29,9 +29,24 @@ function groupModelsByProvider(models: Model[]) {
   }, {} as Record<string, Model[]>)
 }
 
-export function ModelSelector() {
-  const [open, setOpen] = useState(false)
+interface ModelSelectorProps {
+  open?: boolean
+  onOpenChange?: (open: boolean) => void
+}
+
+export function ModelSelector({ open: controlledOpen, onOpenChange }: ModelSelectorProps = {}) {
+  const [uncontrolledOpen, setUncontrolledOpen] = useState(false)
   const [selectedModelId, setSelectedModelId] = useState<string>('')
+
+  const isControlled = controlledOpen !== undefined
+  const open = isControlled ? controlledOpen : uncontrolledOpen
+  const setOpen = (newOpen: boolean) => {
+    if (isControlled) {
+      onOpenChange?.(newOpen)
+    } else {
+      setUncontrolledOpen(newOpen)
+    }
+  }
 
   useEffect(() => {
     const savedModel = getCookie('selected-model')
@@ -58,23 +73,28 @@ export function ModelSelector() {
           aria-expanded={open}
           className="text-sm rounded-full shadow-none focus:ring-0"
         >
-          {selectedModel ? (
-            <div className="flex items-center space-x-1">
-              <Image
-                src={`/providers/logos/${selectedModel.providerId}.svg`}
-                alt={selectedModel.provider}
-                width={18}
-                height={18}
-                className="bg-white rounded-full border"
-              />
-              <span className="text-xs font-medium">{selectedModel.name}</span>
-              {isReasoningModel(selectedModel.id) && (
-                <Lightbulb size={12} className="text-accent-blue-foreground" />
-              )}
-            </div>
-          ) : (
-            'Select model'
-          )}
+          <div className="flex items-center space-x-1">
+            {selectedModel ? (
+              <>
+                <Image
+                  src={`/providers/logos/${selectedModel.providerId}.svg`}
+                  alt={selectedModel.provider}
+                  width={18}
+                  height={18}
+                  className="bg-white rounded-full border"
+                />
+                <span className="text-xs font-medium">{selectedModel.name}</span>
+                {isReasoningModel(selectedModel.id) && (
+                  <Lightbulb size={12} className="text-accent-blue-foreground" />
+                )}
+              </>
+            ) : (
+              <span>Select model</span>
+            )}
+            <kbd className="ml-1 text-[10px] text-muted-foreground hidden sm:inline-block">
+              {navigator.platform.toLowerCase().includes('mac') ? '⌘' : 'Ctrl'} + ↑
+            </kbd>
+          </div>
           <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
         </Button>
       </PopoverTrigger>

@@ -10,7 +10,20 @@ import {
   PopoverTrigger
 } from '@/components/ui/popover'
 import { cn } from '@/lib/utils'
-import { SourceQuickInsertProps } from './types'
+
+interface Source {
+  id: string
+  title?: string
+  url: string
+  snippet?: string
+  relevance?: number
+}
+
+interface SourceQuickInsertProps {
+  sources: Source[]
+  onSourceClick: (source: Source) => void
+  searchMode?: boolean
+}
 
 export function SourceQuickInsert({
   sources,
@@ -48,20 +61,40 @@ export function SourceQuickInsert({
         </div>
         <div className="max-h-60 overflow-y-auto">
           {sources.map((source) => (
-            <button
+            <div
               key={source.id}
               className="flex w-full items-start space-x-2 p-4 text-left hover:bg-muted/50"
-              onClick={() => {
-                onSourceClick(source)
-                setOpen(false)
-              }}
             >
               <div className="flex-1 space-y-1">
-                <p className="text-sm font-medium leading-none">
-                  {source.title || source.url}
-                </p>
+                <div className="text-sm font-medium leading-none flex items-center justify-between">
+                  <div className="flex-1 flex items-center">
+                    <a
+                      href={source.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="hover:underline flex-1"
+                    >
+                      <span className="font-medium">{source.title || 'Untitled Source'}</span>
+                      <span className="text-xs text-muted-foreground ml-2">
+                        ({new URL(source.url).hostname})
+                      </span>
+                    </a>
+                  </div>
+                  <button
+                    onClick={() => {
+                      onSourceClick({
+                        ...source,
+                        title: `[${source.title || 'Untitled Source'}](${source.url})`
+                      })
+                      setOpen(false)
+                    }}
+                    className="ml-2 text-xs text-muted-foreground hover:text-foreground"
+                  >
+                    <Link className="h-3 w-3" />
+                  </button>
+                </div>
                 {source.snippet && (
-                  <p className="text-xs text-muted-foreground line-clamp-2">
+                  <p className="text-xs text-muted-foreground line-clamp-2 mt-1">
                     {source.snippet}
                   </p>
                 )}
@@ -71,7 +104,7 @@ export function SourceQuickInsert({
                   {Math.round(source.relevance * 100)}%
                 </div>
               )}
-            </button>
+            </div>
           ))}
         </div>
       </PopoverContent>

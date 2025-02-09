@@ -29,6 +29,9 @@ export function SearchModeToggle({
     >
       <Globe className="size-4" />
       <span className="text-xs">Search</span>
+      <kbd className="ml-2 text-[10px] text-muted-foreground">
+        {navigator.platform.toLowerCase().includes('mac') ? '⌘' : 'Ctrl'} + .
+      </kbd>
     </Toggle>
   )
 }
