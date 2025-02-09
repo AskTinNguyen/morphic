@@ -4,12 +4,12 @@ import { AttachmentFile } from '@/lib/types'
 import { cn } from '@/lib/utils'
 import { uploadFile, validateFile } from '@/lib/utils/upload'
 import { Message } from 'ai'
-import { ArrowUp, MessageCirclePlus, Square } from 'lucide-react'
+import { ArrowUp, MessageCirclePlus, Square, Upload } from 'lucide-react'
 import { nanoid } from 'nanoid'
 import { useRouter } from 'next/navigation'
 import { useEffect, useRef, useState } from 'react'
+import { useDropzone } from 'react-dropzone'
 import Textarea from 'react-textarea-autosize'
-import { FileDropzone } from './chat/FileDropzone'
 import { ImagePreview } from './chat/ImagePreview'
 import { EmptyScreen } from './empty-screen'
 import { ModelSelector } from './model-selector'
@@ -48,7 +48,7 @@ export function ChatPanel({
   append,
   //suggestions = [],
   //sources = [],
-  // onSearchModeChange
+  onSearchModeChange
 }: ChatPanelProps) {
   const [showEmptyScreen, setShowEmptyScreen] = useState(false)
   const [searchMode, setSearchMode] = useState(false)
@@ -58,7 +58,6 @@ export function ChatPanel({
   const [isComposing, setIsComposing] = useState(false) // Composition state
   const [enterDisabled, setEnterDisabled] = useState(false) // Disable Enter after composition ends
   const [attachments, setAttachments] = useState<AttachmentFile[]>([])
-  const [dropzoneActive, setDropzoneActive] = useState(false)
 
   const handleCompositionStart = () => setIsComposing(true)
 
@@ -142,6 +141,17 @@ export function ChatPanel({
     }
   }
 
+  const { getRootProps, getInputProps, isDragActive } = useDropzone({
+    onDrop: handleFileAccepted,
+    noClick: true,
+    noKeyboard: true,
+    accept: {
+      'image/*': ['.png', '.gif', '.jpeg', '.jpg', '.webp'],
+      'application/pdf': ['.pdf']
+    },
+    preventDropOnDocument: true,
+  })
+
   const handleRemoveAttachment = (id: string) => {
     setAttachments(prev => {
       const attachment = prev.find(a => a.id === id)
@@ -185,47 +195,66 @@ export function ChatPanel({
         )}
       >
         <div className="relative flex flex-col w-full gap-2 bg-muted rounded-3xl border border-input">
-          <FileDropzone
-            onFilesAccepted={handleFileAccepted}
-            isActive={dropzoneActive}
-            onActiveChange={setDropzoneActive}
-            className="absolute inset-0"
-          />
-          <Textarea
-            ref={inputRef}
-            name="input"
-            rows={2}
-            maxRows={5}
-            tabIndex={0}
-            onCompositionStart={handleCompositionStart}
-            onCompositionEnd={handleCompositionEnd}
-            placeholder="Ask a question..."
-            spellCheck={false}
-            value={input}
-            className="resize-none w-full min-h-12 bg-transparent border-0 px-4 py-3 text-sm placeholder:text-muted-foreground focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
-            onChange={e => {
-              handleInputChange(e)
-              setShowEmptyScreen(e.target.value.length === 0)
-            }}
-            onKeyDown={e => {
-              if (
-                e.key === 'Enter' &&
-                !e.shiftKey &&
-                !isComposing &&
-                !enterDisabled
-              ) {
-                if (input.trim().length === 0) {
-                  e.preventDefault()
-                  return
-                }
-                e.preventDefault()
-                const textarea = e.target as HTMLTextAreaElement
-                textarea.form?.requestSubmit()
-              }
-            }}
-            onFocus={() => setShowEmptyScreen(true)}
-            onBlur={() => setShowEmptyScreen(false)}
-          />
+          <div className="relative w-full">
+            <div
+              {...getRootProps()}
+              className={cn(
+                'relative w-full',
+                isDragActive && 'after:absolute after:inset-0 after:rounded-3xl after:border-2 after:border-dashed after:border-primary after:bg-primary/5 after:z-50'
+              )}
+            >
+              <input {...getInputProps()} />
+              <Textarea
+                ref={inputRef}
+                name="input"
+                rows={2}
+                maxRows={5}
+                tabIndex={0}
+                onCompositionStart={handleCompositionStart}
+                onCompositionEnd={handleCompositionEnd}
+                placeholder="Ask a question..."
+                spellCheck={false}
+                value={input}
+                className={cn(
+                  "resize-none w-full min-h-12 bg-transparent border-0 px-4 py-3 text-sm",
+                  "placeholder:text-muted-foreground focus-visible:outline-none",
+                  "disabled:cursor-not-allowed disabled:opacity-50",
+                  isDragActive && "opacity-50"
+                )}
+                disabled={isDragActive}
+                onChange={e => {
+                  handleInputChange(e)
+                  setShowEmptyScreen(e.target.value.length === 0)
+                }}
+                onKeyDown={e => {
+                  if (
+                    e.key === 'Enter' &&
+                    !e.shiftKey &&
+                    !isComposing &&
+                    !enterDisabled
+                  ) {
+                    if (input.trim().length === 0) {
+                      e.preventDefault()
+                      return
+                    }
+                    e.preventDefault()
+                    const textarea = e.target as HTMLTextAreaElement
+                    textarea.form?.requestSubmit()
+                  }
+                }}
+                onFocus={() => setShowEmptyScreen(true)}
+                onBlur={() => setShowEmptyScreen(false)}
+              />
+              {isDragActive && (
+                <div className="absolute inset-0 z-50 flex items-center justify-center">
+                  <div className="flex items-center gap-2 rounded-lg bg-background px-3 py-2 text-sm font-medium shadow-lg">
+                    <Upload className="size-4" />
+                    Drop files to upload
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
 
           {/* Show image previews if there are attachments */}
           {attachments.length > 0 && (
