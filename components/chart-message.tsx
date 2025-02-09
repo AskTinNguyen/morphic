@@ -1,44 +1,115 @@
 'use client'
 
-import type { ChartMessage as ChartMessageType } from '@/lib/types/chart'
-import dynamic from 'next/dynamic'
-import { memo } from 'react'
-import { Card, CardContent, CardHeader, CardTitle } from './ui/card'
-
-// Dynamically import Chart component with no SSR
-const Chart = dynamic(() => import('./ui/chart'), { ssr: false })
+import ChartComponent from '@/components/ui/chart'
+import type { ChatChartMessage } from '@/lib/types/chart'
+import { memo, useEffect, useState } from 'react'
+import { Card } from './ui/card'
 
 interface ChartMessageProps {
-  message: ChartMessageType
+  message: ChatChartMessage
 }
 
-const ChartMessageComponent = ({ message }: ChartMessageProps) => {
-  console.log('ChartMessage received:', message)
+function ChartMessageComponent({ message }: ChartMessageProps) {
+  const [error, setError] = useState<string | null>(null)
+  const [isClient, setIsClient] = useState(false)
 
-  if (!message?.data?.chartData) {
-    console.warn('No chart data available:', message)
+  useEffect(() => {
+    setIsClient(true)
+  }, [])
+
+  // Don't render anything on server
+  if (!isClient) {
     return null
   }
 
-  // Ensure we only use supported chart types
-  const chartType = message.data.type === 'bar' ? 'bar' : 'line'
+  if (!message?.data) {
+    console.error('No valid chart data found in message')
+    return null
+  }
+
+  if (error) {
+    return (
+      <Card className="w-full max-w-2xl mx-auto my-4 p-4">
+        <div className="text-red-500">
+          Failed to render chart: {error}
+        </div>
+      </Card>
+    )
+  }
 
   return (
-    <Card className="w-full max-w-2xl mx-auto">
-      {message.data.title && (
-        <CardHeader>
-          <CardTitle>{message.data.title}</CardTitle>
-        </CardHeader>
-      )}
-      <CardContent>
-        <Chart 
-          type={chartType}
-          data={message.data.chartData}
-          className="w-full h-[300px]"
+    <div className="w-full max-w-2xl mx-auto">
+      <Card className="p-4 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+        <ChartComponent
+          key={JSON.stringify(message.data)} // Ensure re-render with new data
+          type={message.data.type}
+          data={message.data}
+          options={{
+            responsive: true,
+            maintainAspectRatio: true,
+            scales: {
+              y: {
+                type: 'linear',
+                display: true,
+                position: 'left',
+                title: {
+                  display: true,
+                  text: 'Temperature (°C)',
+                  color: 'rgb(255, 159, 64)'
+                },
+                ticks: {
+                  color: 'rgb(255, 159, 64)'
+                }
+              },
+              y1: {
+                type: 'linear',
+                display: true,
+                position: 'right',
+                title: {
+                  display: true,
+                  text: 'Air Quality Index (AQI)',
+                  color: 'rgb(75, 192, 192)'
+                },
+                ticks: {
+                  color: 'rgb(75, 192, 192)'
+                },
+                grid: {
+                  drawOnChartArea: false // Only show grid lines for left axis
+                }
+              }
+            },
+            plugins: {
+              title: {
+                display: true,
+                text: message.data.title || '',
+                font: {
+                  size: 16,
+                  weight: 'normal'
+                },
+                padding: {
+                  bottom: 16
+                }
+              },
+              legend: {
+                position: 'top' as const,
+                align: 'center' as const,
+                labels: {
+                  boxWidth: 12,
+                  usePointStyle: true,
+                  padding: 16
+                }
+              }
+            }
+          }}
         />
-      </CardContent>
-    </Card>
+      </Card>
+      {message.content && (
+        <p className="mt-2 text-sm text-muted-foreground">
+          {message.content}
+        </p>
+      )}
+    </div>
   )
 }
 
-export const ChartMessage = memo(ChartMessageComponent) 
+export default memo(ChartMessageComponent) 

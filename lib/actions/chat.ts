@@ -1,9 +1,10 @@
 'use server'
 
+import { getRedisClient, RedisWrapper } from '@/lib/redis/config'
+import { type Chat } from '@/lib/types'
+import { JSONValue } from 'ai'
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
-import { type Chat } from '@/lib/types'
-import { getRedisClient, RedisWrapper } from '@/lib/redis/config'
 
 async function getRedis(): Promise<RedisWrapper> {
   return await getRedisClient()
@@ -47,7 +48,61 @@ export async function getChats(userId?: string | null) {
         const plainChat = { ...chat }
         if (typeof plainChat.messages === 'string') {
           try {
-            plainChat.messages = JSON.parse(plainChat.messages)
+            const parsedMessages = JSON.parse(plainChat.messages)
+            plainChat.messages = parsedMessages.map((msg: any) => {
+              // Handle special chart message type
+              if (msg.type === 'chart' && msg.data) {
+                return {
+                  ...msg,
+                  data: typeof msg.data === 'string' ? JSON.parse(msg.data) : msg.data
+                }
+              }
+
+              return {
+                ...msg,
+                // Ensure tool invocations are properly structured
+                ...(msg.toolInvocations && {
+                  toolInvocations: msg.toolInvocations.map((tool: any) => ({
+                    ...tool,
+                    args: typeof tool.args === 'string' ? JSON.parse(tool.args) : tool.args,
+                    result: tool.result && typeof tool.result === 'string' ? 
+                      JSON.parse(tool.result) : tool.result
+                  }))
+                }),
+                // Ensure annotations (including charts) are properly structured
+                ...(msg.annotations && {
+                  annotations: msg.annotations.map((annotation: any) => {
+                    if (typeof annotation === 'string') {
+                      try {
+                        return JSON.parse(annotation)
+                      } catch {
+                        return annotation
+                      }
+                    }
+                    // If it's a chart annotation, ensure data is properly parsed
+                    if (annotation?.type === 'chart' && typeof annotation.data === 'string') {
+                      try {
+                        return {
+                          ...annotation,
+                          data: JSON.parse(annotation.data)
+                        }
+                      } catch {
+                        return annotation
+                      }
+                    }
+                    return annotation
+                  })
+                }),
+                // Handle chart data in content if present
+                ...(msg.content && typeof msg.content === 'string' && {
+                  content: msg.content,
+                  annotations: [
+                    ...(msg.annotations || []),
+                    ...extractChartAnnotations(msg.content)
+                  ]
+                })
+              }
+            })
           } catch (error) {
             plainChat.messages = []
           }
@@ -73,8 +128,64 @@ export async function getChat(id: string, userId: string = 'anonymous') {
   // Parse the messages if they're stored as a string
   if (typeof chat.messages === 'string') {
     try {
-      chat.messages = JSON.parse(chat.messages)
+      // Parse messages and ensure tool invocations and annotations are preserved
+      const parsedMessages = JSON.parse(chat.messages)
+      chat.messages = parsedMessages.map((msg: any) => {
+        // Handle special chart message type
+        if (msg.type === 'chart' && msg.data) {
+          return {
+            ...msg,
+            data: typeof msg.data === 'string' ? JSON.parse(msg.data) : msg.data
+          }
+        }
+
+        return {
+          ...msg,
+          // Ensure tool invocations are properly structured
+          ...(msg.toolInvocations && {
+            toolInvocations: msg.toolInvocations.map((tool: any) => ({
+              ...tool,
+              args: typeof tool.args === 'string' ? JSON.parse(tool.args) : tool.args,
+              result: tool.result && typeof tool.result === 'string' ? 
+                JSON.parse(tool.result) : tool.result
+            }))
+          }),
+          // Ensure annotations (including charts) are properly structured
+          ...(msg.annotations && {
+            annotations: msg.annotations.map((annotation: any) => {
+              if (typeof annotation === 'string') {
+                try {
+                  return JSON.parse(annotation)
+                } catch {
+                  return annotation
+                }
+              }
+              // If it's a chart annotation, ensure data is properly parsed
+              if (annotation?.type === 'chart' && typeof annotation.data === 'string') {
+                try {
+                  return {
+                    ...annotation,
+                    data: JSON.parse(annotation.data)
+                  }
+                } catch {
+                  return annotation
+                }
+              }
+              return annotation
+            })
+          }),
+          // Handle chart data in content if present
+          ...(msg.content && typeof msg.content === 'string' && {
+            content: msg.content,
+            annotations: [
+              ...(msg.annotations || []),
+              ...extractChartAnnotations(msg.content)
+            ]
+          })
+        }
+      })
     } catch (error) {
+      console.error('Error parsing chat messages:', error)
       chat.messages = []
     }
   }
@@ -85,6 +196,24 @@ export async function getChat(id: string, userId: string = 'anonymous') {
   }
 
   return chat
+}
+
+// Helper function to extract chart annotations from content
+function extractChartAnnotations(content: string): JSONValue[] {
+  const annotations: JSONValue[] = []
+  const chartMatch = content.match(/<chart_data>([\s\S]*?)<\/chart_data>/)
+  if (chartMatch) {
+    try {
+      const chartData = JSON.parse(chartMatch[1].trim())
+      annotations.push({
+        type: 'chart',
+        data: chartData
+      })
+    } catch (error) {
+      console.error('Error parsing chart data from content:', error)
+    }
+  }
+  return annotations
 }
 
 export async function clearChats(

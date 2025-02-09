@@ -1,195 +1,100 @@
 ## Chart Implementation Progress
 
-### Implementation
-
-Here's a simplified breakdown of the steps for client-side rendering:
-
-*   **Choose a JavaScript Graph Library:** Select a library like Chart.js (easy for common charts), ECharts (feature-rich), D3.js (powerful and flexible but steeper learning curve), Plotly.js (good for scientific charts and interactivity), or Cytoscape.js (for network graphs).
-*   **Prepare your JSON data:** Structure your JSON data in a format that the chosen graph library understands. Most libraries expect data in array of objects or similar formats.
-*   **Include the graph library in your web page:** Usually done by including a `<script>` tag to load the library from a CDN or your own server.
-*   **Write JavaScript/Typescript code:**
-    *   Fetch JSON data (either on page load or in response to updates).
-    *   Use the chosen graph library's API to create a graph object.
-    *   Pass your JSON data to the graph object to populate the graph.
-    *   Configure graph options (colors, labels, axes, etc.) as needed.
-    *   Place the graph within your chat interface's HTML structure (typically in a `<div>` element).
-*   **For Dynamic Updates (if needed):**
-    *   Set up a mechanism to receive data updates (e.g., WebSockets, SSE, or AJAX polling).
-    *   When new JSON data arrives, update the graph's data using the library's API to re-render the graph with the new data.
-
-### Step by Step Implementation
-
-**Steps:**
-
-1.  **Set up a NestJS Endpoint to Serve JSON Data (Backend - NestJS)**
-
-    *   **Generate a Controller (if you don't have one already):**
-        Open your terminal in your NestJS project directory and run:
-
-        ``` Bash
-        nest g controller chart
-        ```
-
-        This creates chart.controller.ts and chart.controller.spec.ts in your src directory.
-    *   **Generate a Service (optional, but good practice for data logic):**
-
-        ``` Bash
-        nest g service chart
-        ```
-
-        This creates chart.service.ts and chart.service.spec.ts in your src directory.
-    *   **Modify chart.service.ts to provide sample data:**
-        Open src/chart.service.ts and replace its contents with:
-
-        ``` TypeScript
-        import { Injectable } from '@nestjs/common';
-
-        @Injectable()
-        export class ChartService {
-            getChartData() {
-                return {
-                    labels: ['January', 'February', 'March', 'April', 'May', 'June'],
-                    datasets: [{
-                        label: 'Sample Data',
-                        data: [65, 59, 80, 81, 56, 55, 40], // Replace with your dynamic data logic
-                        backgroundColor: 'rgba(54, 162, 235, 0.8)', // Example color
-                        borderColor: 'rgba(54, 162, 235, 1)',     // Example border color
-                        borderWidth: 1
-                    }]
-                };
-            }
-        }
-        ```
-
-        Explanation: This service has a simple method getChartData() that returns a JavaScript object. This object represents the basic data structure Chart.js needs. labels are for the X-axis, and datasets contains the actual data points (data) and styling. In a real application, you would replace the hardcoded data array with logic to fetch data from a database, an external API, or generate it dynamically.
-    *   **Modify chart.controller.ts to create an API endpoint:**
-
-        Open src/chart.controller.ts and replace its contents with:
-
-        ``` TypeScript
-        import { Controller, Get } from '@nestjs/common';
-        import { ChartService } from './chart.service';
-
-        @Controller('chart') // Base path for this controller is /chart
-        export class ChartController {
-            constructor(private readonly chartService: ChartService) {}
-
-            @Get('data') // Endpoint is now /chart/data
-            getChartData(): any {
-                return this.chartService.getChartData();
-            }
-        }
-        ```
-
-        Explanation:
-
-        *   `@Controller('chart')` sets the base URL path for all endpoints in this controller to `/chart`.
-        *   `@Get('data')` creates a GET endpoint at `/chart/data`.
-        *   `getChartData()` method:
-            *   Calls the `getChartData()` method from `ChartService` to get the data.
-            *   Returns the data directly. NestJS automatically serializes JavaScript objects returned from controllers as JSON.
-
-2.  **Create a Frontend HTML File and Include Chart.js (Frontend - Client-Side)**
-
-    *   Create a `public` folder (if you don't have one) in your NestJS project root. NestJS serves static files from the public folder by default.
-    *   Create an HTML file in the public folder (e.g., `index.html`):
-        Open public/index.html and add the following basic HTML structure:
-
-        ``` HTML
-        <!DOCTYPE html>
-        <html>
-        <head>
-            <title>Chart.js Example</title>
-        </head>
-        <body>
-            <h1>Chart.js Example in NestJS</h1>
-            <canvas id="myChart" width="400" height="200"></canvas>
-
-            <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-            <script>
-                // JavaScript code for Chart.js will go here (Step 3)
-            </script>
-        </body>
-        </html>
-        ```
-
-        Explanation:
-
-        *   Basic HTML structure.
-        *   `<canvas id="myChart"></canvas>`: This is where Chart.js will draw the graph. `id="myChart"` is important so we can reference it in JavaScript.
-        *   `<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>`: Includes Chart.js library from a CDN. This is the simplest way to use Chart.js without needing to install npm packages on the frontend (for this simple example).
-
-3.  **Write JavaScript to Fetch Data and Render the Chart (Frontend - Client-Side JavaScript)**
-
-    Add JavaScript code within the `<script>` tags in `index.html`:
-
-    ``` HTML
-    <!DOCTYPE html>
-    <html>
-    <head>
-        <title>Chart.js Example</title>
-    </head>
-    <body>
-        <h1>Chart.js Example in NestJS</h1>
-        <canvas id="myChart" width="400" height="200"></canvas>
-
-        <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-        <script>
-            document.addEventListener('DOMContentLoaded', () => { // Ensure DOM is fully loaded
-                fetch('/chart/data') // Fetch data from your NestJS endpoint
-                    .then(response => response.json())
-                    .then(chartData => {
-                        const ctx = document.getElementById('myChart').getContext('2d');
-                        new Chart(ctx, {
-                            type: 'bar', // Example chart type: bar chart
-                            data: chartData,
-                            options: {
-                                responsive: true,
-                                scales: {
-                                    y: {
-                                        beginAtZero: true
-                                    }
-                                }
-                            }
-                        });
-                    })
-                    .catch(error => {
-                        console.error('Error fetching chart data:', error);
-                    });
-            });
-        </script>
-    </body>
-    </html>
-    ```
-
-    *   **Explanation of JavaScript Code Functionality**
-
-        *   **`document.addEventListener('DOMContentLoaded', ...)`:**
-            *   Ensures the JavaScript code runs after the HTML document is fully loaded.
-            *   Prevents errors related to accessing elements that might not be ready yet.
-
-        *   **`fetch('/chart/data')`:**
-            *   Fetches data from the NestJS API endpoint `/chart/data`.
-            *   NestJS runs by default on `http://localhost:3000`, so the full URL will be something like `http://localhost:3000/chart/data`.
-            *   `/chart/data` is relative to the current domain, which works in this case.
-
-        *   **`.then(response => response.json())`:**
-            *   Parses the response from the NestJS endpoint as JSON.
-
-        *   **`.then(chartData => { ... })`:**
-            *   This is where we use Chart.js:
-                *   `const ctx = document.getElementById('myChart').getContext('2d');`:
-                    *   Gets the 2D rendering context of the `<canvas>` element.
-                    *   Chart.js needs this context to draw on the canvas.
-                *   `new Chart(ctx, { ... });`:
-                    *   Creates a new Chart.js chart instance.
-                    *   `type: 'bar'`:
-                        *   Sets the chart type to a bar chart.
-                        *   You can change this to
-
 ### Our Modern Implementation Approach
 
-Our current implementation takes a more sophisticated approach using Next.js, React, and TypeScript. Here's an overview of our implementation and identified issues that need addressing:
+Our current implementation takes a sophisticated approach using Next.js, React, and TypeScript. Here's an overview of our successful implementation:
+
+#### Previous Failed Attempts and Lessons Learned
+
+1. **Annotation-Only Approach (Failed)**
+   - Initially tried to rely solely on message annotations for chart data
+   - Failed because the AI's response format includes chart data as XML-like tags in the content
+   - Annotations were never populated because we weren't processing the XML structure
+
+2. **Direct Chart.js Integration (Failed)**
+   - Attempted to directly integrate Chart.js without proper message processing
+   - Charts wouldn't render because we were missing the connection between AI output and chart data
+   - The XML tags in the content were being displayed as raw text
+
+3. **Children Prop Approach (Failed)**
+   ```typescript
+   <ChatMessages>
+     {(message) => (
+       <ChartMessage message={chartMessage} />
+     )}
+   </ChatMessages>
+   ```
+   - Tried to use a render prop pattern with ChatMessages
+   - Failed because ChatMessages wasn't designed to accept children
+   - Led to type errors and runtime issues
+
+4. **Why Our Current Solution Works**
+   - Processes chart data at the message rendering level in `RenderMessage`
+   - Handles both annotation-based and XML-based chart data
+   - Properly cleans up the message content after extracting chart data
+   - Uses proper TypeScript types and validation
+   - Maintains separation of concerns between data extraction and rendering
+
+5. **Message Duplication Issues (Fixed)**
+   - Initially had issues with chart data being duplicated in messages
+   - Two main duplication sources identified:
+     1. Chart data appearing in both message content and annotations
+     2. Same text description appearing in both chart message and regular message
+
+   **Solution Implementation:**
+   ```typescript
+   // In handleStreamFinish.ts
+   const chartMessages = allAnnotations.filter(a => 
+     'type' in a && a.type === 'chart'
+   )
+   const otherAnnotations = allAnnotations.filter(a => 
+     a.role === 'data' && 
+     a.content !== null &&
+     typeof a.content === 'object' && 
+     'type' in a.content && 
+     a.content.type !== 'tool_call'
+   )
+
+   // Create the message to save with proper ordering
+   const generatedMessages = [
+     ...extendedCoreMessages,
+     ...responseMessages.slice(0, -1),
+     ...otherAnnotations,
+     // For the last message, if we have a chart, use it instead of the text message
+     ...(chartMessages.length > 0 ? chartMessages : responseMessages.slice(-1))
+   ]
+   ```
+
+   **Key Improvements:**
+   1. Separated chart messages from other annotations
+   2. Implemented mutually exclusive message handling:
+      - If a chart message exists, use it instead of the text message
+      - If no chart message exists, use the original text message
+   3. Proper ordering ensures consistent message flow
+   4. Chart data is preserved while eliminating duplicate text
+
+   **Loading and Parsing:**
+   ```typescript
+   // In getChat.ts and getChats.ts
+   if (msg.type === 'chart' && msg.data) {
+     return {
+       ...msg,
+       data: typeof msg.data === 'string' ? JSON.parse(msg.data) : msg.data
+     }
+   }
+   ```
+   - Special handling for chart message types during loading
+   - Ensures chart data structure is preserved
+   - Properly parses nested JSON structures
+   - Maintains type safety throughout the process
+
+The key insight was that we needed to:
+1. Extract chart data from the message content using regex
+2. Convert the extracted data into a proper ChatChartMessage format
+3. Clean up the displayed message by removing the XML tags
+4. Handle both annotation and XML-based chart data sources
+5. Process everything at the message rendering level rather than the chat level
+6. Ensure mutually exclusive message handling to prevent duplication
 
 #### Current Architecture
 
@@ -206,159 +111,174 @@ Our current implementation takes a more sophisticated approach using Next.js, Re
     *   Chart Types and Interfaces (`lib/types/chart.ts`)
     *   API Route with Stream Processing (`app/api/chat/route.ts`)
 
-#### Identified Issues and Fixes
+#### Successfully Implemented Features
 
-1.  **Chart.js Registration and Dynamic Import Issues**
+1. **XML-like Chart Data Processing**
+   ```typescript
+   // Function to extract and parse chart data from message content
+   function extractChartData(content: string): ChatChartMessage | null {
+     try {
+       const chartMatch = content.match(/<chart_data>([\s\S]*?)<\/chart_data>/)
+       if (!chartMatch) return null
 
-    *Current Issue:*
-    ```typescript
-    const Line = dynamic(
-      () => import('react-chartjs-2').then((mod) => {
-        import('chart.js').then(({ Chart, CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend }) => {
-          Chart.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend)
-        })
-        return mod.Line // This could return before registration
-      }),
-      { ssr: false }
-    )
-    ```
+       const chartJson = JSON.parse(chartMatch[1].trim())
+       return createChartMessage(chartJson)
+     } catch (error) {
+       console.error('Error extracting chart data:', error)
+       return null
+     }
+   }
+   ```
 
-    *Recommended Fix:*
-    ```typescript
-    const Line = dynamic(
-      async () => {
-        const { Line } = await import('react-chartjs-2')
-        const { Chart, CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend } = await import('chart.js')
-        Chart.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend)
-        return Line
-      },
-      { ssr: false }
-    )
-    ```
+2. **Dual Chart Data Sources**
+   - Support for both annotation-based charts and inline XML-like chart data
+   - Seamless fallback between the two sources
+   ```typescript
+   const chartMessage = useMemo(() => {
+     // First check annotations
+     const chartAnnotation = message.annotations?.find(
+       annotation => (annotation as any)?.type === 'chart'
+     ) as ChatChartMessage | undefined
 
-2.  **Data Structure Mismatches**
+     if (chartAnnotation) return chartAnnotation
 
-    *Current Issue:*
-    - Inconsistent data structure expectations
-    - Unsafe type assumptions
-    - Missing validation
+     // If no annotation, try to extract from content
+     if (typeof message.content === 'string') {
+       return extractChartData(message.content)
+     }
 
-    *Recommended Fix:*
-    ```typescript
-    function processChartData(message: string | { content: string }): { content: string; chartData?: any } {
-      try {
-        // ...
-        const chartData = {
-          type: 'chart',
-          data: {
-            type: rawData.type || 'line',
-            title: rawData.title,
-            chartData: {
-              labels: Array.isArray(rawData.labels) ? rawData.labels : [],
-              datasets: (rawData.datasets || []).map((dataset: any) => ({
-                label: dataset.label || 'Dataset',
-                data: Array.isArray(dataset.data) ? dataset.data : [],
-                borderColor: dataset.borderColor || '#4CAF50',
-                backgroundColor: dataset.backgroundColor || 'rgba(76, 175, 80, 0.1)',
-                borderWidth: 1,
-                tension: 0.1
-              }))
-            }
-          }
-        }
-        // ...
-      }
-    }
-    ```
+     return undefined
+   }, [message.annotations, message.content])
+   ```
 
-3.  **Silent Failure Handling**
+3. **Clean Content Display**
+   - Automatic removal of chart XML data from displayed message
+   - Preserves readability while maintaining chart functionality
+   ```typescript
+   const cleanContent = typeof message.content === 'string' 
+     ? message.content.replace(/<chart_data>[\s\S]*?<\/chart_data>/g, '').trim()
+     : message.content
+   ```
 
-    *Current Issue:*
-    - Components silently return null
-    - No user feedback
-    - Missing error boundaries
+4. **Type-Safe Chart Data Handling**
+   ```typescript
+   export interface ChatChartData {
+     type: ChartType
+     title?: string
+     labels: string[]
+     datasets: Array<{
+       label: string
+       data: number[]
+       borderColor?: string
+       backgroundColor?: string
+       borderWidth?: number
+     }>
+   }
 
-    *Recommended Fix:*
-    ```typescript
-    const ChartMessageComponent = ({ message }: ChartMessageProps) => {
-      if (!message?.data?.chartData) {
-        return (
-          <Card className="w-full max-w-2xl mx-auto">
-            <CardContent>
-              <div className="p-4 text-center text-red-500">
-                Unable to render chart: Invalid data format
-              </div>
-            </CardContent>
-          </Card>
-        )
-      }
-      // ... rest of the component
-    }
-    ```
+   export interface ChatChartMessage {
+     type: 'chart'
+     role: 'assistant'
+     content: string
+     data: ChatChartData
+   }
+   ```
 
-4.  **Type Safety and Validation**
+5. **Robust Data Validation**
+   ```typescript
+   export function validateChatChartData(data: any): data is ChatChartData {
+     if (!data || 
+         !data.type ||
+         !Array.isArray(data.labels) || 
+         !Array.isArray(data.datasets)) return false
 
-    *Current Issue:*
-    - Inconsistent type definitions
-    - Missing runtime validation
-    - Type mismatches between interfaces
+     return data.datasets.every((dataset: DatasetToValidate) => 
+       typeof dataset.label === 'string' &&
+       Array.isArray(dataset.data) &&
+       dataset.data.every((value: unknown) => typeof value === 'number')
+     )
+   }
+   ```
 
-    *Recommended Fix:*
-    ```typescript
-    function validateChartData(data: any): boolean {
-      if (!data?.labels || !Array.isArray(data.labels)) return false
-      if (!data?.datasets || !Array.isArray(data.datasets)) return false
-      
-      return data.datasets.every((dataset: any) => 
-        dataset.label && 
-        Array.isArray(dataset.data) &&
-        dataset.data.every((value: any) => typeof value === 'number')
-      )
-    }
-    ```
+4. **Message Content Double Rendering (Fixed)**
+   - Initially had overlapping render paths for messages with tool calls
+   - Content would render once through tool data and once through content section
+   - Fixed by properly handling message storage and loading:
+   ```typescript
+   // When saving messages
+   const extendedCoreMessages = originalMessages.map(msg => ({
+     role: msg.role,
+     content: msg.content,
+     ...(msg.toolInvocations && { toolInvocations: msg.toolInvocations })
+   }))
 
-5.  **Debug and Testing Support**
+   // Filter out redundant tool-call annotations
+   const generatedMessages = [
+     ...extendedCoreMessages,
+     ...responseMessages.slice(0, -1),
+     ...allAnnotations.filter(a => 
+       a.role === 'data' && 
+       a.content !== null &&
+       typeof a.content === 'object' && 
+       'type' in a.content && 
+       a.content.type !== 'tool_call'
+     ),
+     ...responseMessages.slice(-1)
+   ]
+   ```
 
-    *Recommended Additions:*
-    ```typescript
-    // Test data for verification
-    const testData = {
-      labels: ['Jan', 'Feb', 'Mar'],
-      datasets: [{
-        label: 'Test Dataset',
-        data: [10, 20, 30],
-        borderColor: '#4CAF50',
-        backgroundColor: 'rgba(76, 175, 80, 0.1)'
-      }]
-    }
+   ```typescript
+   // When loading messages
+   chat.messages = parsedMessages.map((msg: any) => ({
+     ...msg,
+     ...(msg.toolInvocations && {
+       toolInvocations: msg.toolInvocations.map((tool: any) => ({
+         ...tool,
+         args: typeof tool.args === 'string' ? JSON.parse(tool.args) : tool.args,
+         result: tool.result && typeof tool.result === 'string' ? 
+           JSON.parse(tool.result) : tool.result
+       }))
+     })
+   }))
+   ```
+   - Now ensures message content is rendered exactly once
+   - Properly preserves tool invocations in chat history
+   - Prevents duplication by removing redundant tool-call annotations
+   - Handles both live and history messages consistently
 
-    // Debug logging
-    function ChartComponent({ type = 'line', data, className }: ChartProps) {
-      console.log('Chart render attempt:', { type, data })
-      // ... rest of component
-    }
-    ```
+#### Usage Example
 
-#### Implementation Steps to Fix
+To render a chart in the chat dialogue, include chart data in the following format:
 
-1.  **Chart.js Setup**
-    *   Update dynamic imports to use proper async/await pattern
-    *   Ensure all required Chart.js components are registered
-    *   Verify Chart.js dependency chain
+```typescript
+<chart_data>
+{
+  "type": "line",
+  "title": "Sample Chart",
+  "labels": ["Label1", "Label2", "Label3"],
+  "datasets": [{
+    "label": "Dataset Name",
+    "data": [10, 20, 30],
+    "borderColor": "#4CAF50",
+    "backgroundColor": "rgba(76, 175, 80, 0.1)"
+  }]
+}
+</chart_data>
+```
 
-2.  **Data Validation**
-    *   Implement data validation layer
-    *   Add type guards for runtime safety
-    *   Update type definitions for consistency
+The system will:
+1. Extract the chart data from the message
+2. Validate the data structure
+3. Create a properly typed chart message
+4. Render the chart while cleaning the message content
+5. Display both the chart and the cleaned message text
 
-3.  **Error Handling**
-    *   Add proper error boundaries
-    *   Implement user-friendly error states
-    *   Add debug logging points
+#### Key Implementation Benefits
 
-4.  **Testing**
-    *   Create test component with hardcoded data
-    *   Verify Chart.js setup independently
-    *   Add integration tests for data flow
+1. **Flexibility**: Supports both annotation-based and inline chart data
+2. **Type Safety**: Full TypeScript support with runtime validation
+3. **Clean Display**: Automatic removal of chart markup from message content
+4. **Error Handling**: Graceful fallbacks and error states
+5. **Performance**: Efficient memo-ization of chart processing
+6. **Maintainability**: Clear separation of concerns and modular design
 
-These improvements will help ensure more reliable chart rendering and better error handling in our modern implementation.
+This implementation successfully enables dynamic chart rendering in the chat dialogue, with proper type safety, error handling, and a clean user experience.

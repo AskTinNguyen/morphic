@@ -1,4 +1,5 @@
 import { researcher } from '@/lib/agents/researcher'
+import { ChatChartMessage, createChartMessage } from '@/lib/types/chart'
 import {
   AssistantContent,
   convertToCoreMessages,
@@ -13,91 +14,39 @@ import { isReasoningModel } from '../utils/registry'
 import { handleStreamFinish } from './handle-stream-finish'
 import { BaseStreamConfig } from './types'
 
-// Add chart data processing function
-function processChartData(content: AssistantContent | ToolContent): { content: AssistantContent | ToolContent; chartData?: any } {
+// Simple chart data processing function
+function processChartData(content: AssistantContent | ToolContent): { content: AssistantContent | ToolContent; chartData?: ChatChartMessage } {
   try {
-    // Convert content to string based on its type
-    let contentStr = ''
-    if (Array.isArray(content)) {
-      contentStr = content
-        .map(part => {
-          if ('text' in part && typeof part.text === 'string') return part.text
-          return ''
-        })
-        .join('')
-    } else if (typeof content === 'string') {
-      contentStr = content
-    } else {
-      console.warn('Unexpected content type in processChartData:', content)
-      return { content }
-    }
+    // Convert content to string
+    const contentStr = typeof content === 'string' 
+      ? content 
+      : Array.isArray(content)
+        ? content.map(part => 'text' in part ? part.text : '').join('')
+        : ''
 
-    // Check if the message contains chart data markers
-    const chartMatch = contentStr.match(/```chart\n([\s\S]*?)\n```/)
+    // Look for chart data between XML tags
+    const chartMatch = contentStr.match(/<chart_data>([\s\S]*?)<\/chart_data>/)
     if (!chartMatch) return { content }
 
     try {
-      // Extract and parse the chart data
-      const rawData = JSON.parse(chartMatch[1])
+      // Parse and create chart message
+      const rawChartData = JSON.parse(chartMatch[1].trim())
+      const chartData = createChartMessage(rawChartData)
       
-      // Transform the data into Chart.js format
-      const chartData = {
-        type: rawData.chart?.type || 'line',
-        title: rawData.chart?.title,
-        data: {
-          labels: rawData.chart?.data?.map((item: any) => item.month),
-          datasets: [{
-            label: rawData.chart?.title || 'Data',
-            data: rawData.chart?.data?.map((item: any) => item.sales),
-            borderColor: 'rgb(75, 192, 192)',
-            backgroundColor: 'rgba(75, 192, 192, 0.2)',
-            tension: 0.1,
-            fill: true
-          }]
-        },
-        options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          plugins: {
-            title: {
-              display: !!rawData.chart?.title,
-              text: rawData.chart?.title || ''
-            },
-            legend: {
-              display: true,
-              position: 'top' as const
-            }
-          },
-          scales: {
-            x: {
-              title: {
-                display: !!rawData.chart?.xAxis,
-                text: rawData.chart?.xAxis || ''
-              }
-            },
-            y: {
-              title: {
-                display: !!rawData.chart?.yAxis,
-                text: rawData.chart?.yAxis || ''
-              },
-              beginAtZero: true
-            }
-          }
-        }
+      if (!chartData) {
+        return { content }
       }
-      
-      // Remove the chart data from the message
-      const newContent = contentStr.replace(/```chart\n[\s\S]*?\n```/, '').trim()
 
-      // Create a text part with the new content
+      // Update the content of the chart message
+      chartData.content = contentStr
+
+      // Remove the chart data from the message
+      const newContent = contentStr.replace(/<chart_data>[\s\S]*?<\/chart_data>/, '').trim()
       const textPart: TextPart = { type: 'text', text: newContent }
 
       return {
         content: Array.isArray(content) ? [textPart] : newContent,
-        chartData: {
-          type: 'chart',
-          data: chartData
-        }
+        chartData
       }
     } catch (parseError) {
       console.error('Error parsing chart data:', parseError)
@@ -130,12 +79,16 @@ export function createToolCallingStreamResponse(config: BaseStreamConfig) {
         const result = streamText({
           ...researcherConfig,
           onFinish: async result => {
-            // Process chart data in the response
+            // Process chart data in the complete response
             const { content, chartData } = processChartData(result.response.messages[0].content)
+            
+            // Update the message content without the chart XML
             result.response.messages[0].content = content
 
-            const annotations = chartData ? [chartData] : undefined
+            // Create annotations array with chart data if present
+            const annotations: ChatChartMessage[] = chartData ? [chartData] : []
 
+            // Handle stream finish will take care of sending the annotations
             await handleStreamFinish({
               responseMessages: result.response.messages,
               originalMessages: messages,

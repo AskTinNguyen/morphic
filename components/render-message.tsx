@@ -1,12 +1,26 @@
-import type { ChartMessage as ChartMessageType } from '@/lib/types/chart'
+import type { ChatChartMessage } from '@/lib/types/chart'
+import { createChartMessage } from '@/lib/types/chart'
 import { JSONValue, Message, ToolInvocation } from 'ai'
 import { useMemo } from 'react'
 import { AnswerSection } from './answer-section'
-import { ChartMessage } from './chart-message'
+import ChartMessage from './chart-message'
 import { ReasoningAnswerSection } from './reasoning-answer-section'
 import RelatedQuestions from './related-questions'
 import { ToolSection } from './tool-section'
-import { UserMessage } from './user-message'
+
+// Function to extract and parse chart data from message content
+function extractChartData(content: string): ChatChartMessage | null {
+  try {
+    const chartMatch = content.match(/<chart_data>([\s\S]*?)<\/chart_data>/)
+    if (!chartMatch) return null
+
+    const chartJson = JSON.parse(chartMatch[1].trim())
+    return createChartMessage(chartJson)
+  } catch (error) {
+    console.error('Error extracting chart data:', error)
+    return null
+  }
+}
 
 interface RenderMessageProps {
   message: Message
@@ -33,12 +47,22 @@ export function RenderMessage({
     [message.annotations]
   )
 
+  // Process both annotation-based and content-based chart data
   const chartMessage = useMemo(() => {
+    // First check annotations
     const chartAnnotation = message.annotations?.find(
       annotation => (annotation as any)?.type === 'chart'
-    )
-    return chartAnnotation as ChartMessageType | undefined
-  }, [message.annotations])
+    ) as ChatChartMessage | undefined
+
+    if (chartAnnotation) return chartAnnotation
+
+    // If no annotation, try to extract from content
+    if (typeof message.content === 'string') {
+      return extractChartData(message.content)
+    }
+
+    return undefined
+  }, [message.annotations, message.content])
 
   // render for manual tool call
   const toolData = useMemo(() => {
@@ -76,7 +100,11 @@ export function RenderMessage({
   }, [message.annotations])
 
   if (message.role === 'user') {
-    return <UserMessage message={message.content} />
+    return (
+      <div className="whitespace-pre-wrap bg-muted/50 p-4 rounded-lg">
+        {message.content}
+      </div>
+    )
   }
 
   if (message.toolInvocations?.length) {
@@ -94,6 +122,11 @@ export function RenderMessage({
     )
   }
 
+  // Clean the content by removing the chart data XML if present
+  const cleanContent = typeof message.content === 'string' 
+    ? message.content.replace(/<chart_data>[\s\S]*?<\/chart_data>/g, '').trim()
+    : message.content
+
   return (
     <>
       {toolData.map(tool => (
@@ -104,24 +137,34 @@ export function RenderMessage({
           onOpenChange={open => onOpenChange(tool.toolCallId, open)}
         />
       ))}
-      {chartMessage && <ChartMessage message={chartMessage} />}
-      {message.reasoning ? (
-        <ReasoningAnswerSection
-          content={{
-            reasoning: message.reasoning,
-            answer: message.content
-          }}
-          isOpen={getIsOpen(messageId)}
-          onOpenChange={open => onOpenChange(messageId, open)}
-          chatId={chatId}
-        />
-      ) : (
-        <AnswerSection
-          content={message.content}
-          isOpen={getIsOpen(messageId)}
-          onOpenChange={open => onOpenChange(messageId, open)}
-          chatId={chatId}
-        />
+      {/* Only render content section if there are no tool invocations */}
+      {!message.toolInvocations && (
+        <>
+          {message.reasoning ? (
+            <ReasoningAnswerSection
+              content={{
+                reasoning: message.reasoning,
+                answer: cleanContent
+              }}
+              isOpen={getIsOpen(messageId)}
+              onOpenChange={open => onOpenChange(messageId, open)}
+              chatId={chatId}
+            />
+          ) : (
+            <AnswerSection
+              content={cleanContent}
+              isOpen={getIsOpen(messageId)}
+              onOpenChange={open => onOpenChange(messageId, open)}
+              chatId={chatId}
+            />
+          )}
+        </>
+      )}
+      {/* Render chart after the content */}
+      {chartMessage && (
+        <div className="mt-4">
+          <ChartMessage message={chartMessage} />
+        </div>
       )}
       {!message.toolInvocations &&
         relatedQuestions &&

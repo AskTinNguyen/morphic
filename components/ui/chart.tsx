@@ -1,142 +1,197 @@
 'use client'
 
+import { ChartDataProcessor, ProcessedChartData } from '@/lib/services/chart-processor'
 import { cn } from '@/lib/utils'
-import dynamic from 'next/dynamic'
-import { memo } from 'react'
+import {
+  BarController,
+  BarElement,
+  CategoryScale,
+  ChartData,
+  Chart as ChartJS,
+  ChartOptions,
+  ChartTypeRegistry,
+  Legend,
+  LinearScale,
+  LineController,
+  LineElement,
+  PointElement,
+  Title,
+  Tooltip
+} from 'chart.js'
+import { memo, useEffect, useMemo, useRef, useState } from 'react'
 
-// Unified Chart.js registration
-const registerChart = async () => {
-  console.log('🔄 Starting Chart.js registration...')
-  const { Chart } = await import('chart.js')
-  const { 
-    CategoryScale, 
-    LinearScale, 
-    PointElement, 
-    LineElement,
-    BarElement, 
-    Title, 
-    Tooltip, 
-    Legend 
-  } = await import('chart.js')
-
-  // Register once for all chart types
-  Chart.register(
-    CategoryScale,
-    LinearScale,
-    PointElement,
-    LineElement,
-    BarElement,
-    Title,
-    Tooltip,
-    Legend
-  )
-  console.log('✅ Chart.js registration complete')
-}
-
-// Dynamically import Line chart with proper registration
-const Line = dynamic(
-  async () => {
-    console.log('📈 Loading Line chart component...')
-    await registerChart()
-    const { Line } = await import('react-chartjs-2')
-    console.log('✅ Line chart component loaded')
-    return Line
-  },
-  { 
-    ssr: false,
-    loading: () => {
-      console.log('⌛ Line chart loading state active')
-      return (
-        <div className="w-full h-[300px] flex items-center justify-center">
-          Loading chart...
-        </div>
-      )
-    }
-  }
+// Register Chart.js components immediately
+ChartJS.register(
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  LineController,
+  BarElement,
+  BarController,
+  Title,
+  Tooltip,
+  Legend
 )
-
-// Dynamically import Bar chart with proper registration
-const Bar = dynamic(
-  async () => {
-    console.log('📊 Loading Bar chart component...')
-    await registerChart()
-    const { Bar } = await import('react-chartjs-2')
-    console.log('✅ Bar chart component loaded')
-    return Bar
-  },
-  { 
-    ssr: false,
-    loading: () => {
-      console.log('⌛ Bar chart loading state active')
-      return (
-        <div className="w-full h-[300px] flex items-center justify-center">
-          Loading chart...
-        </div>
-      )
-    }
-  }
-)
-
-// Default options as per Chart.js docs
-const defaultOptions = {
-  responsive: true,
-  maintainAspectRatio: false,
-  plugins: {
-    legend: {
-      position: 'top' as const,
-    },
-    title: {
-      display: true,
-      text: ''
-    }
-  },
-  scales: {
-    x: {
-      display: true,
-      title: {
-        display: true
-      }
-    },
-    y: {
-      display: true,
-      beginAtZero: true
-    }
-  }
-}
 
 interface ChartProps {
-  type?: 'line' | 'bar'
-  data: {
-    labels: string[]
-    datasets: Array<{
-      label: string
-      data: number[]
-      borderColor?: string
-      backgroundColor?: string
-      borderWidth?: number
-    }>
-  }
+  type: keyof ChartTypeRegistry
+  data: ChartData
+  options?: ChartOptions
   className?: string
+  updateOptions?: {
+    appendData?: boolean
+    maxDataPoints?: number
+  }
 }
 
-function ChartComponent({ type = 'line', data, className }: ChartProps) {
-  console.log('🎨 Chart render attempt:', { type, data })
-  const Component = type === 'line' ? Line : Bar
-  
+function BaseChartComponent({ 
+  type, 
+  data, 
+  options, 
+  className, 
+  updateOptions 
+}: ChartProps) {
+  const chartRef = useRef<HTMLCanvasElement>(null)
+  const chartInstance = useRef<ChartJS | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const [isInitialized, setIsInitialized] = useState(false)
+  const processor = useMemo(() => ChartDataProcessor.getInstance(), [])
+
+  // Process the incoming data
+  const processedData = useMemo(() => {
+    try {
+      if (!chartInstance.current) {
+        return processor.preprocessData(data)
+      }
+      return processor.updateChartData(
+        chartInstance.current.data as ProcessedChartData,
+        data,
+        updateOptions
+      )
+    } catch (err) {
+      console.error('Error processing chart data:', err)
+      setError('Failed to process chart data')
+      return null
+    }
+  }, [data, processor, updateOptions])
+
+  // Format data for specific chart type
+  const formattedData = useMemo(() => {
+    if (!processedData) return null
+    try {
+      return processor.formatForChartType(processedData, type)
+    } catch (err) {
+      console.error('Error formatting chart data:', err)
+      setError('Failed to format chart data')
+      return null
+    }
+  }, [processedData, type, processor])
+
+  // Initialize chart instance
+  const initChart = async () => {
+    if (!chartRef.current || !formattedData) return
+
+    try {
+      const ctx = chartRef.current.getContext('2d')
+      if (!ctx) {
+        setError('Failed to get canvas context')
+        return
+      }
+
+      // Create new chart with basic configuration
+      chartInstance.current = new ChartJS(ctx, {
+        type,
+        data: formattedData,
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          ...options
+        }
+      })
+      setIsInitialized(true)
+    } catch (err) {
+      console.error('Error initializing chart:', err)
+      setError(err instanceof Error ? err.message : 'Failed to initialize chart')
+    }
+  }
+
+  // Update existing chart
+  const updateChart = () => {
+    if (!chartInstance.current || !formattedData) return
+
+    try {
+      chartInstance.current.data = formattedData
+      chartInstance.current.update('none') // Use 'none' mode for smoother updates
+    } catch (err) {
+      console.error('Error updating chart:', err)
+      setError(err instanceof Error ? err.message : 'Failed to update chart')
+    }
+  }
+
+  // Cleanup effect
+  useEffect(() => {
+    return () => {
+      if (chartInstance.current) {
+        chartInstance.current.destroy()
+        chartInstance.current = null
+        setIsInitialized(false)
+      }
+    }
+  }, [])
+
+  // Handle chart initialization and updates
+  useEffect(() => {
+    if (!formattedData) return
+
+    if (!isInitialized) {
+      initChart()
+    } else {
+      updateChart()
+    }
+  }, [formattedData, isInitialized])
+
+  if (error) {
+    return (
+      <div className={cn('relative w-full h-[300px] flex items-center justify-center text-red-500', className)}>
+        {error}
+      </div>
+    )
+  }
+
   return (
-    <div className={cn('w-full h-[300px]', className)}>
-      <Component 
-        data={data}
-        options={{
-          ...defaultOptions,
-          animation: {
-            duration: 0 // Disable animations for better performance
-          }
-        }}
-      />
+    <div className={cn('relative w-full h-[300px]', className)}>
+      <canvas ref={chartRef} />
     </div>
   )
 }
 
-// Memoize the chart component to prevent unnecessary re-renders
+// Type-safe wrapper component
+function ChartComponent<TType extends keyof ChartTypeRegistry>({ 
+  type, 
+  data, 
+  options, 
+  className, 
+  updateOptions 
+}: {
+  type: TType
+  data: ChartData<TType>
+  options?: ChartOptions<TType>
+  className?: string
+  updateOptions?: {
+    appendData?: boolean
+    maxDataPoints?: number
+  }
+}) {
+  return (
+    <BaseChartComponent
+      type={type}
+      data={data as ChartData}
+      options={options as ChartOptions}
+      className={className}
+      updateOptions={updateOptions}
+    />
+  )
+}
+
 export default memo(ChartComponent) 

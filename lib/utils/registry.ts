@@ -113,12 +113,35 @@ export function isProviderEnabled(providerId: string): boolean {
   }
 }
 
+export function isToolCallSupported(model?: string) {
+  const [provider, ...modelNameParts] = model?.split(':') ?? []
+  const modelName = modelNameParts.join(':')
+
+  if (provider === 'ollama') {
+    return false
+  }
+
+  if (provider === 'google') {
+    return true
+  }
+
+  // Enable tool calling for DeepSeek models except DeepSeek R1
+  if (provider === 'deepseek') {
+    return !modelName.includes('deepseek-r1')
+  }
+
+  return true
+}
+
 export function getToolCallModel(model?: string) {
   const [provider, ...modelNameParts] = model?.split(':') ?? []
   const modelName = modelNameParts.join(':')
   switch (provider) {
     case 'deepseek':
-      return getModel('deepseek:deepseek-chat')
+      // Use the same DeepSeek model for tool calling if it's not DeepSeek R1
+      return modelName.includes('deepseek-r1') 
+        ? getModel('deepseek:deepseek-chat')
+        : getModel(`deepseek:${modelName}`)
     case 'fireworks':
       return getModel(
         'fireworks:accounts/fireworks/models/llama-v3p1-8b-instruct'
@@ -130,27 +153,10 @@ export function getToolCallModel(model?: string) {
         process.env.NEXT_PUBLIC_OLLAMA_TOOL_CALL_MODEL || modelName
       return getModel(`ollama:${ollamaModel}`)
     case 'google':
-      return getModel('google:gemini-2.0-flash')
+      return getModel(`google:${modelName}`)
     default:
-      return getModel('openai:gpt-4o-mini')
+      return getModel('openai:o3-mini')
   }
-}
-
-export function isToolCallSupported(model?: string) {
-  const [provider, ...modelNameParts] = model?.split(':') ?? []
-  const modelName = modelNameParts.join(':')
-
-  if (provider === 'ollama') {
-    return false
-  }
-
-  if (provider === 'google') {
-    return false
-  }
-
-  // Deepseek R1 is not supported
-  // Deepseek v3's tool call is unstable, so we include it in the list
-  return !modelName?.includes('deepseek')
 }
 
 export function isReasoningModel(model: string): boolean {

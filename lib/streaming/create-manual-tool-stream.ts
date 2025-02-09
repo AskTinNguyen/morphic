@@ -1,4 +1,4 @@
-import { ChartMessage, isChartData, RawChartData } from '@/lib/types/chart'
+import { ChatChartMessage } from '@/lib/types/chart'
 import {
   AssistantContent,
   convertToCoreMessages,
@@ -14,100 +14,38 @@ import { getMaxAllowedTokens, truncateMessages } from '../utils/context-window'
 import { handleStreamFinish } from './handle-stream-finish'
 import { BaseStreamConfig } from './types'
 
-interface DataItem {
-  month?: string
-  [key: string]: any
-}
-
-interface DatasetItem {
-  label?: string
-  data?: any[]
-  borderColor?: string
-  backgroundColor?: string
-  borderWidth?: number
-  tension?: number
-}
-
-// Add chart data processing function
-function processChartData(content: AssistantContent | ToolContent): { content: AssistantContent | ToolContent; chartData?: ChartMessage } {
+// Simple chart data processing function
+function processChartData(content: AssistantContent | ToolContent): { content: AssistantContent | ToolContent; chartData?: ChatChartMessage } {
   try {
-    // Convert content to string based on its type
-    let contentStr = ''
-    if (Array.isArray(content)) {
-      contentStr = content
-        .map(part => {
-          if ('text' in part && typeof part.text === 'string') return part.text
-          return ''
-        })
-        .join('')
-    } else if (typeof content === 'string') {
-      contentStr = content
-    } else {
-      console.warn('Unexpected content type in processChartData:', content)
-      return { content }
-    }
+    // Convert content to string
+    const contentStr = typeof content === 'string' 
+      ? content 
+      : Array.isArray(content)
+        ? content.map(part => 'text' in part ? part.text : '').join('')
+        : ''
 
-    // Check if the message contains chart data markers
-    const chartMatch = contentStr.match(/```chart\n([\s\S]*?)\n```/)
+    // Look for chart data between XML tags
+    const chartMatch = contentStr.match(/<chart_data>([\s\S]*?)<\/chart_data>/)
     if (!chartMatch) return { content }
 
-    try {
-      // Extract and parse the chart data
-      const rawData = JSON.parse(chartMatch[1]) as RawChartData
-      
-      // Transform into Chart.js format
-      const chartData: ChartMessage = {
-        type: 'chart',
-        role: 'assistant',
-        content: contentStr,
-        data: {
-          type: rawData.type || 'line',
-          title: rawData.title,
-          chartData: {
-            // Use labels directly if available, otherwise extract from data
-            labels: rawData.labels || 
-              (Array.isArray(rawData.data) 
-                ? rawData.data.map((item: DataItem) => item.month || '').filter(Boolean)
-                : []),
-            // Transform and validate datasets
-            datasets: Array.isArray(rawData.datasets)
-              ? rawData.datasets.map((dataset: DatasetItem) => ({
-                  label: dataset.label || 'Dataset',
-                  data: Array.isArray(dataset.data)
-                    ? dataset.data.filter((value: unknown) => typeof value === 'number')
-                    : [],
-                  borderColor: dataset.borderColor || '#4CAF50',
-                  backgroundColor: dataset.backgroundColor || 'rgba(76, 175, 80, 0.1)',
-                  borderWidth: dataset.borderWidth || 1,
-                  tension: dataset.tension || 0.1
-                }))
-              : []
-          }
-        }
-      }
+    // Parse the chart data
+    const chartJson = JSON.parse(chartMatch[1].trim())
+    const chartData: ChatChartMessage = {
+      type: 'chart',
+      role: 'assistant',
+      content: contentStr,
+      data: chartJson
+    }
 
-      // Validate the transformed data
-      if (!isChartData(chartData.data)) {
-        console.error('Invalid chart data structure:', chartData)
-        return { content }
-      }
+    // Remove the chart data from the message
+    const newContent = contentStr.replace(/<chart_data>[\s\S]*?<\/chart_data>/, '').trim()
+    const textPart: TextPart = { type: 'text', text: newContent }
 
-      // Remove the chart data from the message
-      const newContent = contentStr.replace(/```chart\n[\s\S]*?\n```/, '').trim()
-
-      // Create a text part with the new content
-      const textPart: TextPart = { type: 'text', text: newContent }
-
-      return {
-        content: Array.isArray(content) ? [textPart] : newContent,
-        chartData
-      }
-    } catch (parseError) {
-      console.error('Error parsing chart data:', parseError)
-      return { content }
+    return {
+      content: Array.isArray(content) ? [textPart] : newContent,
+      chartData
     }
   } catch (error) {
-    console.error('Error processing chart data:', error)
     return { content }
   }
 }

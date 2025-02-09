@@ -68,15 +68,20 @@ If you determine a chart is valuable, you MUST output your response in the follo
 3. Follow this exact structure for chart data:
    \`\`\`chart
    {
-     "type": "line",  // or "bar"
-     "title": "Chart Title",
-     "labels": ["Label1", "Label2", ...],
-     "datasets": [{
-       "label": "Dataset Label",
-       "data": [value1, value2, ...],
-       "borderColor": "#4CAF50",
-       "backgroundColor": "rgba(76, 175, 80, 0.1)"
-     }]
+    type: 'chart',
+    role: 'assistant',
+    content: 'Here\'s a simple bar chart:',
+    data: {
+      type: 'bar',
+      title: 'Basic Bar Chart',
+      labels: ['A', 'B', 'C', 'D'],
+      datasets: [{
+        label: 'Values',
+        data: [10, 20, 30, 40],
+        borderColor: '#4CAF50',
+        backgroundColor: 'rgba(76, 175, 80, 0.1)'
+      }]
+    }
    }
    \`\`\`
 4. Always close the code block with \`\`\`

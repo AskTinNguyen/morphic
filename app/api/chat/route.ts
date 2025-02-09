@@ -1,6 +1,6 @@
 import { createManualToolStreamResponse } from '@/lib/streaming/create-manual-tool-stream'
 import { createToolCallingStreamResponse } from '@/lib/streaming/create-tool-calling-stream'
-import { ChartMessage, isChartData, RawChartData } from '@/lib/types/chart'
+import { ChatChartMessage } from '@/lib/types/chart'
 import { isProviderEnabled, isToolCallSupported } from '@/lib/utils/registry'
 import { cookies } from 'next/headers'
 
@@ -15,66 +15,31 @@ interface StreamData {
   [key: string]: any
 }
 
-// Add this function to handle chart data in the message
-function processChartData(message: string | { content: string }): { content: string; chartData?: ChartMessage } {
+// Simple chart data processing function
+function processChartData(message: string | { content: string }): { content: string; chartData?: ChatChartMessage } {
   try {
-    // Handle both string and object with content property
-    const messageStr = typeof message === 'string' ? message : message.content
+    // Get content string
+    const messageStr = typeof message === 'string' ? message : message.content || ''
+    if (!messageStr) return { content: '' }
 
-    if (!messageStr) {
-      console.warn('Empty message in processChartData')
-      return { content: '' }
-    }
+    // Look for chart data between XML tags
+    const chartMatch = messageStr.match(/<chart_data>([\s\S]*?)<\/chart_data>/)
+    if (!chartMatch) return { content: messageStr }
 
-    // Check if the message contains chart data markers
-    const chartMatch = messageStr.match(/```chart\n([\s\S]*?)\n```/)
-    if (!chartMatch) {
-      return { content: messageStr }
-    }
-
-    // Extract and parse the chart data
-    const rawData = JSON.parse(chartMatch[1]) as RawChartData
-    
-    // Transform the data into Chart.js format
-    const chartData: ChartMessage = {
+    // Parse the chart data
+    const chartJson = JSON.parse(chartMatch[1].trim())
+    const chartData: ChatChartMessage = {
       type: 'chart',
-      data: {
-        type: rawData.type || 'line',
-        title: rawData.title,
-        chartData: {
-          // Ensure we have valid labels from the data array
-          labels: Array.isArray(rawData.data) 
-            ? rawData.data.map(item => item.month || '').filter(Boolean)
-            : [],
-          // Transform and validate datasets
-          datasets: Array.isArray(rawData.datasets) 
-            ? rawData.datasets.map(dataset => ({
-                label: dataset.label || 'Dataset',
-                data: Array.isArray(dataset.data) 
-                  ? dataset.data.filter(value => typeof value === 'number')
-                  : [],
-            borderColor: dataset.borderColor || '#4CAF50',
-            backgroundColor: dataset.backgroundColor || 'rgba(76, 175, 80, 0.1)',
-                borderWidth: dataset.borderWidth || 1,
-                tension: dataset.tension || 0.1
-          }))
-            : []
-        }
-      }
-    }
-
-    // Validate the transformed data
-    if (!isChartData(chartData.data)) {
-      console.error('Invalid chart data structure:', chartData)
-      return { content: messageStr }
+      role: 'assistant',
+      content: messageStr,
+      data: chartJson
     }
 
     // Remove the chart data from the message
-    const content = messageStr.replace(/```chart\n[\s\S]*?\n```/, '').trim()
+    const content = messageStr.replace(/<chart_data>[\s\S]*?<\/chart_data>/, '').trim()
 
     return { content, chartData }
   } catch (error) {
-    console.error('Error processing chart data:', error)
     return { content: typeof message === 'string' ? message : message?.content || '' }
   }
 }

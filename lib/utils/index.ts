@@ -94,6 +94,7 @@ export function convertToUIMessages(
 ): Array<Message> {
   let pendingAnnotations: JSONValue[] = []
   let pendingReasoning: string | undefined
+  let pendingToolInvocations: Array<ToolInvocation> = []
 
   return messages.reduce((chatMessages: Array<Message>, message) => {
     // Handle tool messages
@@ -122,7 +123,20 @@ export function convertToUIMessages(
         ) {
           if (content.type === 'reasoning') {
             pendingReasoning = content.data as string
+          } else if (content.type === 'tool_call') {
+            // Convert tool call annotations to tool invocations
+            const toolData = content.data as any
+            if (toolData && typeof toolData === 'object') {
+              pendingToolInvocations.push({
+                state: toolData.state || 'call',
+                toolCallId: toolData.toolCallId,
+                toolName: toolData.toolName,
+                args: toolData.args,
+                result: toolData.result
+              })
+            }
           } else {
+            // Keep all other annotations including charts
             pendingAnnotations.push(content)
           }
         }
@@ -131,12 +145,28 @@ export function convertToUIMessages(
     }
 
     let textContent = ''
-    let toolInvocations: Array<ToolInvocation> = []
+    let toolInvocations: Array<ToolInvocation> = [...pendingToolInvocations]
+    let messageAnnotations: JSONValue[] = [...pendingAnnotations]
 
     // Handle message content
     if (message.content) {
       if (typeof message.content === 'string') {
         textContent = message.content
+        // Extract chart data from content if present
+        const chartMatch = textContent.match(/<chart_data>([\s\S]*?)<\/chart_data>/)
+        if (chartMatch) {
+          try {
+            const chartData = JSON.parse(chartMatch[1].trim())
+            messageAnnotations.push({
+              type: 'chart',
+              data: chartData
+            })
+            // Clean the content
+            textContent = textContent.replace(/<chart_data>[\s\S]*?<\/chart_data>/g, '').trim()
+          } catch (error) {
+            console.error('Error parsing chart data:', error)
+          }
+        }
       } else if (Array.isArray(message.content)) {
         for (const content of message.content) {
           if (content && typeof content === 'object' && 'type' in content) {
@@ -148,12 +178,17 @@ export function convertToUIMessages(
               'toolName' in content &&
               'args' in content
             ) {
-              toolInvocations.push({
-                state: 'call',
-                toolCallId: content.toolCallId,
-                toolName: content.toolName,
-                args: content.args
-              } as ToolInvocation)
+              const existingTool = toolInvocations.find(
+                t => t.toolCallId === content.toolCallId
+              )
+              if (!existingTool) {
+                toolInvocations.push({
+                  state: 'call',
+                  toolCallId: content.toolCallId,
+                  toolName: content.toolName,
+                  args: content.args
+                } as ToolInvocation)
+              }
             }
           }
         }
@@ -166,10 +201,15 @@ export function convertToUIMessages(
       role: message.role,
       content: textContent,
       toolInvocations: toolInvocations.length > 0 ? toolInvocations : undefined,
-      // Add pending annotations and reasoning if this is an assistant message
+      // Add annotations and reasoning if this is an assistant message
       ...(message.role === 'assistant' && {
-        ...(pendingAnnotations.length > 0 && {
-          annotations: pendingAnnotations
+        ...(messageAnnotations.length > 0 && {
+          annotations: messageAnnotations.filter(a => 
+            a !== null &&
+            typeof a === 'object' && 
+            'type' in a && 
+            (a.type === 'chart' || a.type !== 'tool_call') // Keep charts and non-tool annotations
+          )
         }),
         ...(pendingReasoning && { reasoning: pendingReasoning })
       })
@@ -181,6 +221,7 @@ export function convertToUIMessages(
     if (message.role === 'assistant') {
       pendingAnnotations = []
       pendingReasoning = undefined
+      pendingToolInvocations = []
     }
 
     return chatMessages
