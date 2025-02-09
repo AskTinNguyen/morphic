@@ -2,10 +2,10 @@
 
 import {
   createContext,
-  useContext,
-  useReducer,
   ReactNode,
   useCallback,
+  useContext,
+  useReducer,
 } from 'react';
 
 interface ActivityItem {
