@@ -4,15 +4,26 @@ import {
   convertToCoreMessages,
   createDataStreamResponse,
   DataStreamWriter,
+  StepResult,
   streamText,
   TextPart,
-  ToolContent
+  ToolContent,
+  ToolSet
 } from 'ai'
 import { manualResearcher } from '../agents/manual-researcher'
-import { ExtendedCoreMessage } from '../types'
 import { getMaxAllowedTokens, truncateMessages } from '../utils/context-window'
 import { handleStreamFinish } from './handle-stream-finish'
+import { StreamProtocolManager } from './stream-protocol-manager'
 import { BaseStreamConfig } from './types'
+
+type StreamFinishEvent = Omit<StepResult<ToolSet>, 'stepType' | 'isContinued'> & {
+  readonly steps: StepResult<ToolSet>[]
+}
+
+const handleError = (error: unknown): string => {
+  if (error instanceof Error) return error.message
+  return String(error)
+}
 
 // Simple chart data processing function
 function processChartData(content: AssistantContent | ToolContent): { content: AssistantContent | ToolContent; chartData?: ChatChartMessage } {
@@ -54,6 +65,7 @@ export function createManualToolStreamResponse(config: BaseStreamConfig) {
   return createDataStreamResponse({
     execute: async (dataStream: DataStreamWriter) => {
       const { messages, model, chatId, searchMode } = config
+      const streamManager = new StreamProtocolManager(dataStream)
 
       try {
         const coreMessages = convertToCoreMessages(messages)
@@ -70,33 +82,49 @@ export function createManualToolStreamResponse(config: BaseStreamConfig) {
 
         const result = streamText({
           ...researcherConfig,
-          onFinish: async result => {
-            // Process chart data in the response
-            const { content, chartData } = processChartData(result.response.messages[0].content)
-            result.response.messages[0].content = content
+          onFinish: async (event: StreamFinishEvent) => {
+            try {
+              const lastStep = event.steps[event.steps.length - 1]
+              if (!lastStep?.response?.messages?.length) return
 
-            const annotations: ExtendedCoreMessage[] = chartData ? [chartData] : []
+              // Process chart data in the complete response
+              const { content, chartData } = processChartData(lastStep.response.messages[0].content)
+              
+              // Update the message content without the chart XML
+              lastStep.response.messages[0].content = content
 
-            await handleStreamFinish({
-              responseMessages: result.response.messages,
-              originalMessages: messages,
-              model,
-              chatId,
-              dataStream,
-              annotations
-            })
+              // Create annotations array with chart data if present
+              const annotations: ChatChartMessage[] = chartData ? [chartData] : []
+
+              // Handle stream finish will take care of sending the annotations
+              await handleStreamFinish({
+                responseMessages: lastStep.response.messages,
+                originalMessages: messages,
+                model,
+                chatId,
+                dataStream,
+                skipRelatedQuestions: true,
+                annotations
+              }).catch(error => {
+                console.error('Error in handleStreamFinish:', error)
+                streamManager.streamError(handleError(error))
+              })
+            } catch (error) {
+              console.error('Error in onFinish:', error)
+              streamManager.streamError(handleError(error))
+            }
           }
         })
 
         result.mergeIntoDataStream(dataStream)
       } catch (error) {
         console.error('Stream execution error:', error)
-        throw error
+        streamManager.streamError(handleError(error))
       }
     },
     onError: error => {
       console.error('Stream error:', error)
-      return error instanceof Error ? error.message : String(error)
+      return handleError(error)
     }
   })
 }

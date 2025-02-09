@@ -262,3 +262,7 @@ export function convertToExtendedCoreMessages(
 
   return result
 }
+
+export function formatNumber(num: number): string {
+  return new Intl.NumberFormat().format(num)
+}

@@ -25,6 +25,7 @@ An AI-powered search engine with a generative UI.
 - Multiple search providers support (Tavily, SearXNG, Exa)
 - Model selection from UI (switch between available AI models)
   - Reasoning models with visible thought process
+- Simple authentication with demo account (username: demo, password: demo)
 
 ### Chat & History
 
@@ -88,6 +89,17 @@ An AI-powered search engine with a generative UI.
 - [Radix UI](https://www.radix-ui.com/) - Unstyled, accessible components
 - [Lucide Icons](https://lucide.dev/) - Beautiful & consistent icons
 
+### Authentication
+
+- [NextAuth.js](https://next-auth.js.org/) - Authentication for Next.js
+- Simple credential provider setup for demo:
+  - Username: `demo`
+  - Password: `demo`
+- Easily extensible to support:
+  - OAuth providers (GitHub, Google, etc.)
+  - Database integration
+  - Custom authentication logic
+
 ## 🚀 Quickstart
 
 ### 1. Fork and Clone repo
@@ -117,6 +129,10 @@ Fill in the required environment variables in `.env.local`:
 # Required
 OPENAI_API_KEY=     # Get from https://platform.openai.com/api-keys
 TAVILY_API_KEY=     # Get from https://app.tavily.com/home
+
+# Authentication (Required for demo login)
+NEXTAUTH_URL=http://localhost:3000    # Your app URL
+NEXTAUTH_SECRET=    # Generate with: openssl rand -base64 32
 ```
 
 For optional features configuration (Redis, SearXNG, etc.), see [CONFIGURATION.md](./docs/CONFIGURATION.md)
