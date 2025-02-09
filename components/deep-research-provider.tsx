@@ -51,7 +51,7 @@ interface DeepResearchContextType {
 
 // Initial state and reducer
 const initialState: DeepResearchState = {
-  isActive: true,
+  isActive: false,
   activity: [],
   sources: [],
   currentDepth: 0,
