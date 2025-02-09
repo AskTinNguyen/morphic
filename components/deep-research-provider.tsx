@@ -30,11 +30,13 @@ function DeepResearchStateManager({
   const getChatClearedKey = useCallback((id: string) => `deepResearchCleared_${id}`, [])
   
   const setChatCleared = useCallback(async (id: string, cleared: boolean) => {
-    // Update session storage
-    if (cleared) {
-      sessionStorage.setItem(getChatClearedKey(id), 'true')
-    } else {
-      sessionStorage.removeItem(getChatClearedKey(id))
+    // Update session storage only on client side
+    if (typeof window !== 'undefined') {
+      if (cleared) {
+        window.sessionStorage.setItem(getChatClearedKey(id), 'true')
+      } else {
+        window.sessionStorage.removeItem(getChatClearedKey(id))
+      }
     }
     
     // Update database if callback provided
@@ -48,7 +50,8 @@ function DeepResearchStateManager({
   }, [getChatClearedKey, onClearStateChange])
   
   const isChatCleared = useCallback((id: string) => {
-    return sessionStorage.getItem(getChatClearedKey(id)) === 'true' || initialClearedState
+    if (typeof window === 'undefined') return initialClearedState
+    return window.sessionStorage.getItem(getChatClearedKey(id)) === 'true' || initialClearedState
   }, [getChatClearedKey, initialClearedState])
   
   const clearChatState = useCallback(async (id: string) => {
@@ -105,9 +108,10 @@ export function useDeepResearchProgress(
   initialClearedState?: boolean
 ) {
   const { setDepth, state, clearState, setActive } = useDeepResearch()
-  const [hasBeenCleared, setHasBeenCleared] = useState(() => 
-    initialClearedState || sessionStorage.getItem(`deepResearchCleared_${chatId}`) === 'true'
-  )
+  const [hasBeenCleared, setHasBeenCleared] = useState(() => {
+    if (typeof window === 'undefined') return initialClearedState || false
+    return initialClearedState || window.sessionStorage.getItem(`deepResearchCleared_${chatId}`) === 'true'
+  })
   
   const shouldContinueResearch = currentDepth < maxDepth && !hasBeenCleared
   
@@ -122,8 +126,16 @@ export function useDeepResearchProgress(
     clearState()
     setDepth(0, maxDepth)
     setHasBeenCleared(true)
-    sessionStorage.setItem(`deepResearchCleared_${chatId}`, 'true')
+    if (typeof window !== 'undefined') {
+      window.sessionStorage.setItem(`deepResearchCleared_${chatId}`, 'true')
+    }
   }, [clearState, setActive, setDepth, maxDepth, chatId])
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      window.sessionStorage.setItem(`deepResearchCleared_${chatId}`, hasBeenCleared.toString())
+    }
+  }, [hasBeenCleared, chatId])
 
   return {
     shouldContinueResearch,

@@ -145,6 +145,11 @@ class UpstashPipelineWrapper {
     return this
   }
 
+  zrange(key: string, start: number, stop: number, options?: { rev: boolean }) {
+    this.pipeline.zrange(key, start, stop, options)
+    return this
+  }
+
   async exec() {
     try {
       return await this.pipeline.exec()
@@ -188,6 +193,15 @@ class LocalPipelineWrapper {
 
   zadd(key: string, score: number, member: string) {
     this.pipeline.zAdd(key, { score, value: member })
+    return this
+  }
+
+  zrange(key: string, start: number, stop: number, options?: { rev: boolean }) {
+    if (options?.rev) {
+      this.pipeline.zRange(key, start, stop, { REV: true })
+    } else {
+      this.pipeline.zRange(key, start, stop)
+    }
     return this
   }
 
