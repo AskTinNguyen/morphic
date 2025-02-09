@@ -6,9 +6,9 @@ import { Message, useChat } from 'ai/react'
 import { useEffect } from 'react'
 import { toast } from 'sonner'
 import useSWR from 'swr'
-import { DeepResearchProvider } from '../importedcode-newfeature-deepresearch/deep-research-context'
 import { ChatMessages } from './chat-messages'
 import { ChatPanel } from './chat-panel'
+import { DeepResearchWrapper } from './deep-research-provider'
 import { DeepResearchVisualization } from './deep-research-visualization'
 
 export function Chat({
@@ -86,16 +86,16 @@ export function Chat({
   }
 
   return (
-    <DeepResearchProvider>
-      <div className="flex min-h-screen">
+    <div className="flex min-h-screen">
+      <DeepResearchWrapper chatId={id} initialClearedState={researchState?.isCleared} onClearStateChange={handleClearResearch}>
         <DeepResearchVisualization
           location="sidebar"
           chatId={id}
           initialClearedState={researchState?.isCleared}
           onClearStateChange={handleClearResearch}
         />
-        <div className="flex-1 pl-0 lg:pl-80">
-          <div className="flex flex-col w-full max-w-3xl mx-auto pt-14 pb-60">
+        <div className="flex-1 flex justify-center">
+          <div className="w-full max-w-3xl pt-14 pb-60">
             <ChatMessages
               messages={messages}
               data={data}
@@ -116,7 +116,7 @@ export function Chat({
             />
           </div>
         </div>
-      </div>
-    </DeepResearchProvider>
+      </DeepResearchWrapper>
+    </div>
   )
 }

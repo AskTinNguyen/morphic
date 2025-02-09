@@ -161,6 +161,7 @@
   - Added source tracking with basic relevance scoring
   - Added per-chat research state persistence in Redis
   - Implemented clearing mechanism for individual chat sessions
+  - Improved UI layout with centered chat content and proper sidebar integration
 - Next step: Implement depth-based search capabilities and UI enhancements
 
 ### Phase 1: Core Integration
@@ -188,6 +189,11 @@
   - [x] Add clear functionality per chat
   - [x] Implement real-time state updates
   - [x] Add loading and error states
+- [x] Layout Improvements
+  - [x] Center chat content in viewport
+  - [x] Proper sidebar integration
+  - [x] Responsive layout handling
+  - [x] Consistent spacing and padding
 
 ### Phase 3: Advanced Features
 - [x] Source Analysis Implementation
@@ -199,7 +205,7 @@
   - [ ] Implement connection visualization
   - [ ] Add relationship mapping
 
-### Phase 4: Data Persistence (New)
+### Phase 4: Data Persistence
 - [x] Redis Integration
   - [x] Implement research state storage
   - [x] Add activity history persistence
@@ -220,3 +226,5 @@
 3. Add monitoring for Redis storage usage
 4. Implement cross-referencing system
 5. Add data migration tools for future schema updates
+6. Fine-tune responsive layout behavior
+7. Optimize performance for large chat histories

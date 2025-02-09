@@ -3,7 +3,7 @@
 import * as Tabs from '@radix-ui/react-tabs'
 import { ChevronLeft, ChevronRight, Trash2 } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
-import { useDeepResearch } from '../importedcode-newfeature-deepresearch/deep-research-context'
+import { useDeepResearch } from './deep-research-provider'
 
 type DeepResearchVisualizationProps = {
   location: 'sidebar' | 'header'
